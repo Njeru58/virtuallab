@@ -1,0 +1,264 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block title %}Create Account &bull; Virtual Physics Laboratory{% endblock title %}
+
+{% block content %}
+{% if not request.user.is_authenticated %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8 col-xl-6">
+      <div class="card shadow-sm border-0 rounded-lg">
+        <div class="card-header bg-dark text-white text-center py-4 rounded-top">
+          <div class="mb-2">
+            <i class="fa-solid fa-atom fa-2x text-info"></i>
+          </div>
+          <h4 class="mb-0 font-weight-bold">Student Registration</h4>
+          <small class="text-muted">Virtual Physics Practical Portal</small>
+        </div>
+
+        <div class="card-body p-4 bg-white">
+          <form method="POST" novalidate id="registrationForm">
+            {% csrf_token %}
+
+            <div class="form-group mb-3">
+              <label for="id_username" class="font-weight-semibold text-secondary small text-uppercase">
+                <i class="fas fa-user text-info me-1"></i> Username
+              </label>
+              {{ form.username|attr:"class:form-control" }}
+              <small class="form-text text-muted d-block">
+                {{ form.username.help_text }}
+              </small>
+              <div class="invalid-feedback d-block" id="error-username">
+                {% if form.is_bound and form.username.errors %}
+                  {{ form.username.errors.0 }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="id_registration_number" class="font-weight-semibold text-secondary small text-uppercase">
+                <i class="fas fa-id-card text-secondary me-1"></i> Registration Number
+              </label>
+              {{ form.registration_number|attr:"class:form-control" }}
+              <small class="form-text text-muted d-block">
+                {{ form.registration_number.help_text }}
+              </small>
+              <div class="invalid-feedback d-block" id="error-registration">
+                {% if form.is_bound and form.registration_number.errors %}
+                  {{ form.registration_number.errors.0 }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="id_programme" class="font-weight-semibold text-secondary small text-uppercase">
+                <i class="fas fa-book text-primary me-1"></i> Degree Programme
+              </label>
+              {{ form.programme|attr:"class:form-control" }}
+              <div class="invalid-feedback d-block" id="error-programme">
+                {% if form.is_bound and form.programme.errors %}
+                  {{ form.programme.errors.0 }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="id_year_group" class="font-weight-semibold text-secondary small text-uppercase">
+                <i class="fas fa-graduation-cap text-success me-1"></i> Academic Year
+              </label>
+              {{ form.year_group|attr:"class:form-control" }}
+              <div class="invalid-feedback d-block" id="error-year">
+                {% if form.is_bound and form.year_group.errors %}
+                  {{ form.year_group.errors.0 }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="id_email" class="font-weight-semibold text-secondary small text-uppercase">
+                <i class="fas fa-envelope text-danger me-1"></i> Email Address
+              </label>
+              {{ form.email|attr:"class:form-control" }}
+              <div class="invalid-feedback d-block" id="error-email">
+                {% if form.is_bound and form.email.errors %}
+                  {{ form.email.errors.0 }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="id_password1" class="font-weight-semibold text-secondary small text-uppercase">
+                <i class="fas fa-lock text-warning me-1"></i> Password
+              </label>
+              {{ form.password1|attr:"class:form-control" }}
+              
+              <div class="progress mt-2" style="height: 6px;">
+                <div id="password-strength-bar" class="progress-bar" role="progressbar" style="width: 0%;"></div>
+              </div>
+              
+              <div class="mt-2 small text-muted" id="password-guidelines">
+                <div id="rule-length"><i class="far fa-circle me-1"></i> At least 8 characters</div>
+                <div id="rule-number"><i class="far fa-circle me-1"></i> At least one number</div>
+                <div id="rule-uppercase"><i class="far fa-circle me-1"></i> At least one uppercase letter</div>
+              </div>
+              
+              <div class="invalid-feedback d-block" id="error-password1">
+                {% if form.is_bound and form.password1.errors %}
+                  {{ form.password1.errors.0 }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group mb-4">
+              <label for="id_password2" class="font-weight-semibold text-secondary small text-uppercase">
+                <i class="fas fa-lock text-warning me-1"></i> Confirm Password
+              </label>
+              {{ form.password2|attr:"class:form-control" }}
+              <div class="invalid-feedback d-block" id="error-password2">
+                {% if form.is_bound and form.password2.errors %}
+                  {{ form.password2.errors.0 }}
+                {% endif %}
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-info btn-block w-100 py-2 font-weight-bold shadow-sm mb-3">
+              <i class="fas fa-user-plus mr-1"></i> Complete Registration
+            </button>
+
+            <div class="text-center mt-3">
+              <p class="small text-muted mb-1">Already registered for laboratory sessions?</p>
+              <a href="{% url 'lab:login' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-sign-in-alt me-1"></i> Log In Instead
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<section class="jumbotron jumbotron-fluid d-flex justify-content-center align-items-center">
+  <div class="container text-center">
+    <h1 class="display-4 text-info"><i class="fas fa-flask mr-2"></i>Virtual Physics Laboratory</h1>
+    <p class="lead">You are already authenticated.</p>
+    <a href="{% url 'lab:experiment_list' %}" class="btn btn-lg btn-info mt-1">
+      <i class="fas fa-flask me-1"></i> Enter Laboratory
+    </a>
+  </div>
+</section>
+{% endif %}
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("registrationForm");
+    const passwordInput = document.getElementById("id_password1");
+    const strengthBar = document.getElementById("password-strength-bar");
+    
+    const ruleLength = document.getElementById("rule-length");
+    const ruleNumber = document.getElementById("rule-number");
+    const ruleUppercase = document.getElementById("rule-uppercase");
+
+    if (passwordInput) {
+      passwordInput.addEventListener("input", function () {
+        const val = passwordInput.value;
+        let score = 0;
+
+        if (val.length >= 8) {
+          score++;
+          updateRuleState(ruleLength, true);
+        } else {
+          updateRuleState(ruleLength, false);
+        }
+
+        if (/\d/.test(val)) {
+          score++;
+          updateRuleState(ruleNumber, true);
+        } else {
+          updateRuleState(ruleNumber, false);
+        }
+
+        if (/[A-Z]/.test(val)) {
+          score++;
+          updateRuleState(ruleUppercase, true);
+        } else {
+          updateRuleState(ruleUppercase, false);
+        }
+
+        if (val.length === 0) {
+          strengthBar.style.width = "0%";
+          strengthBar.className = "progress-bar";
+        } else if (score === 1) {
+          strengthBar.style.width = "33%";
+          strengthBar.className = "progress-bar bg-danger";
+        } else if (score === 2) {
+          strengthBar.style.width = "66%";
+          strengthBar.className = "progress-bar bg-warning";
+        } else if (score === 3) {
+          strengthBar.style.width = "100%";
+          strengthBar.className = "progress-bar bg-success";
+        }
+      });
+    }
+
+    function updateRuleState(element, isPassed) {
+      if (!element) return;
+      const icon = element.querySelector("i");
+      if (isPassed) {
+        element.classList.remove("text-muted");
+        element.classList.add("text-success");
+        if (icon) icon.className = "fas fa-check-circle me-1";
+      } else {
+        element.classList.remove("text-success");
+        element.classList.add("text-muted");
+        if (icon) icon.className = "far fa-circle me-1";
+      }
+    }
+
+    form.addEventListener("submit", function (e) {
+      let isValid = true;
+
+      const fields = [
+        { id: "id_username", errorId: "error-username" },
+        { id: "id_registration_number", errorId: "error-registration" },
+        { id: "id_programme", errorId: "error-programme" },
+        { id: "id_year_group", errorId: "error-year" },
+        { id: "id_email", errorId: "error-email" },
+        { id: "id_password1", errorId: "error-password1" },
+        { id: "id_password2", errorId: "error-password2" },
+      ];
+
+      fields.forEach(f => {
+        const input = document.getElementById(f.id);
+        const error = document.getElementById(f.errorId);
+        if (!input || !input.value.trim()) {
+          if (error) error.textContent = "This field is required.";
+          if (input) input.classList.add("is-invalid");
+          isValid = false;
+        } else {
+          if (error) error.textContent = "";
+          if (input) input.classList.remove("is-invalid");
+        }
+      });
+
+      const p1 = document.getElementById("id_password1");
+      const p2 = document.getElementById("id_password2");
+      const errorP2 = document.getElementById("error-password2");
+      
+      if (p1 && p2 && p1.value !== p2.value) {
+        if (errorP2) errorP2.textContent = "Passwords do not match.";
+        p2.classList.add("is-invalid");
+        isValid = false;
+      }
+
+      if (!isValid) {
+        e.preventDefault();
+      }
+    });
+  });
+</script>
+{% endblock extra_js %}

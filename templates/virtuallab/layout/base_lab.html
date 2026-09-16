@@ -1,0 +1,144 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>{% block title %}Virtual Physics Laboratory{% endblock title %}</title>
+
+  <!-- Bootstrap 4 -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css"
+        integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Core Lab Style Override -->
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f8fafc;
+      color: #1e293b;
+    }
+    .navbar-lab {
+      background-color: #0f172a;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .navbar-lab .navbar-brand {
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #ffffff !important;
+    }
+    .navbar-lab .nav-link {
+      color: #94a3b8 !important;
+      font-weight: 500;
+      transition: color 0.15s ease-in-out;
+    }
+    .navbar-lab .nav-link:hover,
+    .navbar-lab .nav-link.active {
+      color: #38bdf8 !important;
+    }
+    .footer-lab {
+      background-color: #ffffff;
+      border-top: 1px solid #e2e8f0;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+  </style>
+
+  {% block extra_css %}{% endblock extra_css %}
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+
+  <!-- Lab App Navbar -->
+  <nav class="navbar navbar-expand-md navbar-dark navbar-lab py-2">
+    <div class="container-fluid px-4">
+        <a href="{% url 'lab:home' %}" class="navbar-brand d-flex align-items-center">
+        <i class="fa-solid fa-atom fa-lg text-info mr-2"></i>
+        <span>Virtual Physics Lab</span>
+        </a>
+
+      <button type="button" 
+              class="navbar-toggler" 
+              data-toggle="collapse" 
+              data-target="#labNavbar" 
+              aria-controls="labNavbar" 
+              aria-expanded="false" 
+              aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse justify-content-end" id="labNavbar">
+        <ul class="navbar-nav align-items-center">
+          {% if request.user.is_authenticated %}
+            <li class="nav-item mx-1">
+              <a class="nav-link" href="{% url 'lab:experiment_list' %}">
+                <i class="fa-solid fa-flask mr-1"></i> Experiments
+              </a>
+            </li>
+
+            <li class="nav-item mx-1">
+              <a class="nav-link" href="{% url 'lab:report_list' %}">
+                <i class="fa-solid fa-book-open mr-1"></i> My Reports
+              </a>
+            </li>
+
+            {% if request.user.is_staff or request.user.is_superuser %}
+              <li class="nav-item mx-1">
+                <a class="nav-link text-warning" href="{% url 'admin:app_list' app_label='virtuallab' %}" target="_blank">
+                  <i class="fa-solid fa-shield-halved mr-1"></i> Lab Admin
+                </a>
+              </li>
+            {% endif %}
+
+            <li class="nav-item ml-3 pl-3 border-left border-secondary text-light">
+              <span class="small font-weight-bold d-block text-slate-300">
+                <i class="fa-solid fa-user-graduate mr-1"></i> {{ request.user.username }}
+              </span>
+            </li>
+
+            <li class="nav-item ml-2">
+              <form method="post" action="{% url 'lab:logout' %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Log Out">
+                  <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+              </form>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a href="{% url 'lab:login' %}" class="btn btn-sm btn-info px-3">
+                <i class="fa-solid fa-arrow-right-to-bracket mr-1"></i> Log In
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Lab Body Content Container -->
+  <main class="flex-grow-1">
+    {% block content %}{% endblock content %}
+  </main>
+
+  <!-- Dedicated Lab Footer -->
+  <footer class="footer-lab py-3 mt-auto text-center">
+    <div class="container">
+      <span>&copy; {% now "Y" %} Virtual Physics Laboratory &bull; Automated Practical Assessment Platform</span>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js"></script>
+
+  {% block extra_js %}{% endblock extra_js %}
+</body>
+</html>

@@ -1,0 +1,171 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load static %}
+{% load custom_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ experiment.title }} - Report PDF</title>
+    <style>
+        body {
+            font-family: "DejaVu Sans", sans-serif;
+            font-size: 12px;
+            color: #222;
+            line-height: 1.5;
+            margin: 40px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #444;
+            padding-bottom: 10px;
+        }
+
+        header img {
+            height: 90px; /* Increased logo size */
+            margin-bottom: 8px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .meta {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        section {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+
+        section h2 {
+            background: #f0f0f0;
+            padding: 6px 10px;
+            border-left: 4px solid #0074D9;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #111;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+        }
+
+        th, td {
+            border: 1px solid #bbb;
+            padding: 6px 8px;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        th {
+            background: #f8f8f8;
+            font-weight: bold;
+        }
+
+        .katex-svg {
+            display: block;
+            text-align: center;
+            margin: 6px 0;
+        }
+
+        .content {
+            white-space: pre-wrap;
+        }
+
+        footer {
+            border-top: 1px solid #999;
+            font-size: 10px;
+            color: #777;
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 8px;
+        }
+
+        /* Prevent SVG overlap in dense equations */
+        svg {
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <img src="https://res.cloudinary.com/dvhsj2yka/image/upload/v1752829117/Question_Bank-removebg-preview_go40kc.png" alt="Logo">
+    <h1>{{ experiment.title }}</h1>
+    <div class="meta">
+        Submitted by <strong>{{ report.student.username }}</strong><br>
+        {{ report.submitted_at|date:"F j, Y, g:i a" }}
+    </div>
+</header>
+
+<main>
+
+    {% for title, content in sections %}
+        <section>
+            <h2>{{ title }}</h2>
+            {% if title == "Data & Error Analysis" %}
+                {% if content %}
+                    {% for svg in content %}
+                        <div class="katex-svg">{{ svg|safe }}</div>
+                    {% endfor %}
+                {% else %}
+                    <div class="content"><em>No data analysis provided.</em></div>
+                {% endif %}
+            {% else %}
+                <div class="content">{{ content|linebreaksbr }}</div>
+            {% endif %}
+        </section>
+    {% endfor %}
+
+    {% if experimental_tables %}
+        <section>
+            <h2>Experimental Tables</h2>
+            {% for tbl in experimental_tables %}
+                <table>
+                    {% for row in tbl %}
+                        {% if forloop.first %}
+                            <tr>
+                                {% for col in row %}
+                                    <th>{{ col }}</th>
+                                {% endfor %}
+                            </tr>
+                        {% else %}
+                            <tr>
+                                {% for cell in row %}
+                                    <td>{{ cell }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </table>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+    {% if questions %}
+        <section>
+            <h2>Experimental Questions</h2>
+            {% for q in questions %}
+                <p><strong>Q{{ forloop.counter }}.</strong> {{ q.text }}</p>
+                <div class="content"><em>Answer:</em> {{ answers|get_item:q.id|default:"Not answered" }}</div>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+</main>
+
+<footer>
+    © {{ experiment.title }} | Generated via Question Bank System
+</footer>
+
+</body>
+</html>

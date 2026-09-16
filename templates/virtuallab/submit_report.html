@@ -1,0 +1,1309 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load static custom_filters %}
+
+{% block title %}Submit Report - {{ experiment.title }}{% endblock %}
+
+{% block content %}
+{# ----------  CSS / JS  ---------- #}
+<link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jspreadsheet.css">
+<link rel="stylesheet" href="https://jsuites.net/v5/jsuites.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mathlive@0.98.6/dist/mathlive-static.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<script src="https://bossanova.uk/jspreadsheet/v4/jspreadsheet.js"></script>
+<script src="https://jsuites.net/v5/jsuites.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+<div class="container my-5 lab-report-container">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <div class="card lab-report-card">
+        <div class="card-body lab-report-card-body">
+
+          <h3 class="card-title text-success mb-4">
+            <i class="fas fa-file-alt"></i> Submit Your Report for "{{ experiment.title }}"
+          </h3>
+
+          <div id="autosaveContainer">
+            <span id="autosaveStatus" class="badge bg-secondary">
+              <i class="fas fa-save"></i> Not saved
+            </span>
+          </div>
+
+          <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle"></i> <strong>Report Structure Guide</strong>
+            <ul class="mt-2 mb-0 small">
+              <li><strong>Objective:</strong> Purpose of the experiment.</li>
+              <li><strong>Apparatus & Materials:</strong> Tools and materials used.</li>
+              <li><strong>Theory:</strong> Scientific principle behind the experiment.</li>
+              <li><strong>Procedure:</strong> Steps in your own words.</li>
+              <li><strong>Observations & Data:</strong> Refine your draft data below.</li>
+              <li><strong>Data & Error Analysis:</strong> Use the math editor and tables for computations.</li>
+              <li><strong>Discussion:</strong> Interpretation & sources of error.</li>
+              <li><strong>Conclusion:</strong> Summary of findings.</li>
+            </ul>
+          </div>
+
+          {% if draft_loaded %}
+            <div class="alert alert-info">
+              <i class="fas fa-check-circle"></i> Draft loaded successfully. Continue editing below.
+            </div>
+          {% endif %}
+
+          {% if submitted %}
+            <div class="alert alert-success">
+              <i class="fas fa-lock"></i> Report already submitted by
+              <strong>{{ report.student.get_full_name|default:report.student.username }}</strong>
+              on <strong>{{ report.submitted_at|date:"F d, Y @ h:i A" }}</strong>.
+            </div>
+          {% endif %}
+
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }}"><i class="fas fa-bell"></i> {{ message }}</div>
+            {% endfor %}
+          {% endif %}
+
+          <form method="POST" enctype="multipart/form-data" id="labReportForm">
+            {% csrf_token %}
+
+            <h5 class="text-primary mb-3"><i class="fas fa-list-alt"></i> Lab Report Sections</h5>
+
+          {# 1. Unified Global Toolbar (One copy only) #}
+          <div class="math-toolbar mb-4 sticky-top bg-white p-2 border rounded shadow-sm" id="mathToolbar">
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              <button type="button" class="btn btn-sm btn-outline-primary" data-insert="\sqrt{}">√</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-insert="\frac{}{}">a⁄b</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-insert="\pi">π</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-insert="\times">×</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-insert="^{}">x²</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-insert="\sum_{i=1}^{n}{}">Σ</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-insert="\left(\right)">()</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-insert="10^{}">10^x</button>
+              
+              <div class="vr mx-2"></div>
+
+              <button type="button" class="btn btn-sm btn-info" id="toggleHybridModeBtn">
+                <i class="fas fa-font"></i> Switch to Text Mode
+              </button>
+              <button type="button" class="btn btn-sm btn-danger" id="addMathLineBtn">
+                <i class="fas fa-level-down-alt"></i> New Line
+              </button>
+            </div>
+            <div class="mt-1">
+              <small class="text-muted">Current Mode: <strong id="currentModeLabel" class="text-primary">Math (Equations)</strong></small>
+            </div>
+          </div>
+
+
+          {# 2. The Universal Loop with Stage Logic #}
+          {% for field in form.visible_fields %}
+            {# Skip the file upload field here, we handle it specially at the bottom #}
+            {% if field.name != 'report_file' %}
+              <div class="form-group mb-4 {% if field.field.widget.attrs.readonly %}locked-section-ui{% endif %}" id="wrapper_{{ field.name }}">
+                <label class="form-label fw-bold">
+                  {% if field.field.widget.attrs.readonly %}
+                    <i class="fas fa-lock text-muted"></i>
+                  {% else %}
+                    <i class="fas fa-edit text-primary"></i>
+                  {% endif %}
+                  {{ field.label }}
+                </label>
+                
+                {{ field }}
+                
+                {% if field.help_text %}
+                  <div class="form-text small text-muted">{{ field.help_text }}</div>
+                {% endif %}
+                {% if field.errors %}
+                  {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+
+            {# ------  IMAGE  ------ #}
+            {% comment %} <div class="form-group mb-3">
+              <label class="fw-bold"><i class="fas fa-image"></i> Attach Image (Draft only)</label>
+              <div class="d-flex align-items-start gap-3">
+                <div>
+                  <input type="file" id="draftImageInput" accept="image/*" class="form-control-file">
+                  <div class="form-text small">Preview saved to draft (auto-uploaded). Removing clears draft.</div>
+                  <div class="mt-2">
+                    <button type="button" id="removeImageBtn" class="btn btn-sm btn-outline-danger">Remove Image</button>
+                  </div>
+                </div>
+                <div>
+                  <img id="imagePreviewThumb" src="" alt="No image" style="display:none;">
+                </div>
+              </div>
+              <input type="hidden" name="draft_image_key" id="draft_image_key">
+            </div> {% endcomment %}
+
+            {# ------  TABLES  ------ #}
+            <div class="form-group mb-4">
+              <label><strong><i class="fas fa-table"></i> Experimental Data Tables</strong></label>
+              <div id="tablesWrapper"></div>
+              <button type="button" id="addTableBtn" class="btn btn-outline-success btn-sm mt-2">
+                <i class="fas fa-plus"></i> Add Table
+              </button>
+              <input type="hidden" name="data" id="finalTablesData">
+            </div>
+
+            {# ------  QUESTIONS  ------ #}
+            {% if questions %}
+              <h5 class="text-primary"><i class="fas fa-question-circle"></i> Experiment Questions</h5>
+              {% for question in questions %}
+                <div class="form-group mb-3">
+                  <label for="question_{{ question.id }}">
+                    <strong>Q{{ forloop.counter }}:</strong> {{ question.question_text }}
+                    <span class="text-muted">[{{ question.marks }} marks]</span>
+                  </label>
+                  <textarea name="question_{{ question.id }}" id="question_{{ question.id }}"
+                            class="form-control autosave-field" rows="3">{{ report_answers|get_item:question.id }}</textarea>
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <!-- ===== Structured Graph Editor (drop into your form) ===== -->
+            <!-- ===== Structured Graph Editor (Multi-Graph Enabled) ===== -->
+            <style>
+              .graph-editor {
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                padding: 12px;
+                background: #fff;
+                margin-bottom: 12px;
+              }
+            
+              .locked-section-ui {
+                  opacity: 0.8;
+              }
+              .locked-section-ui math-field {
+                  background-color: #f8f9fa !important;
+                  border-left: 4px solid #6c757d !important;
+                  pointer-events: none; /* Prevents typing in MathLive */
+              }
+
+              .jcontextmenu { z-index: 11000 !important; }
+              .lab-report-card-body { overflow: visible !important; }
+
+              #mathToolbar {
+                position: sticky;
+                top: 10px;
+                z-index: 1000;
+                background: white;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+              }
+              math-field {
+                display: block;
+                width: 100%;
+                background: #fff;
+                border: 1px solid #ced4da;
+                border-radius: 0.25rem;
+                padding: 8px;
+                font-size: 1.1rem;
+                height: auto !important;
+                min-height: 120px;
+              }
+              math-field:focus-within {
+                outline: none;
+                border-color: #28a745;
+                box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+              }
+              .graph-editor.graph-active {
+                border-color: #1d7cf2;
+                box-shadow: 0 0 8px rgba(29,124,242,0.3);
+              }
+            
+              .graph-canvas-wrap {
+                position: relative;
+                width: 100%;
+                height: 420px;
+              }
+            
+              .graph-canvas {
+                width: 100%;
+                height: 100%;
+                display: block;
+                background: #fafafa;
+                border: 1px solid #ccc;
+                touch-action: none;
+              }
+            
+              .graph-tooltip {
+                position: absolute;
+                pointer-events: none;
+                display: none;
+                background: rgba(0,0,0,0.75);
+                color: #fff;
+                font-size: 12px;
+                padding: 3px 6px;
+                border-radius: 4px;
+                z-index: 10;
+              }
+            
+              /* Responsive graph-meta */
+              .graph-meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-bottom: 8px;
+              }
+            
+              .graph-meta .meta-group {
+                display: flex;
+                flex-direction: column;
+                min-width: 70px;
+                flex: 1 1 auto;
+              }
+            
+              .graph-meta .meta-group.full {
+                flex: 2 1 150px; /* Title and labels take more space */
+              }
+            
+              @media (max-width: 768px) {
+                .graph-meta {
+                  flex-direction: column;
+                }
+                .graph-meta .meta-group,
+                .graph-meta .meta-group.full {
+                  width: 100%;
+                }
+              }
+            </style>
+            
+            {% if experiment.needs_graph %}
+            <!-- Container for all graphs -->
+            <div id="graphsContainer"></div>
+          
+            <!-- Add Graph Button -->
+            <div class="mb-3">
+              <button type="button" class="btn btn-outline-primary" id="addGraphBtn">
+                <i class="fas fa-plus"></i> Add Graph
+              </button>
+            </div>
+          
+            <!-- Graph Template (hidden) -->
+            <template id="graph-template">
+              <div class="graph-editor">
+                <label class="fw-bold mb-2">
+                  <i class="fas fa-draw-polygon"></i> Experimental Graph
+                </label>
+          
+                <!-- Toolbar per graph -->
+                <div class="graph-toolbar mb-2">
+                  <button type="button" class="btn btn-sm btn-outline-primary" data-tool="point">Point</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-tool="move">Move</button>
+                  <button type="button" class="btn btn-sm btn-outline-info" data-tool="tangent">Tangent</button>
+                  <button type="button" class="btn btn-sm btn-outline-warning" data-action="bestfit">Best Fit</button>
+                  <button type="button" class="btn btn-sm btn-outline-danger" data-action="clear">Clear</button>
+                  <button type="button" class="btn btn-sm btn-outline-success" data-action="save">Save</button>
+                  <button type="button" class="btn btn-sm btn-outline-dark" data-action="export">PNG</button>
+                  <span class="ms-3 small text-muted">Tool: <strong class="active-tool-label">Point</strong></span>
+                </div>
+          
+                <!-- Responsive graph-meta -->
+                <div class="graph-meta">
+                  <div class="meta-group">
+                    <label class="small mb-1">X min</label>
+                    <input class="form-control form-control-sm gxmin" type="number" value="0" step="any">
+                  </div>
+                  <div class="meta-group">
+                    <label class="small mb-1">X max</label>
+                    <input class="form-control form-control-sm gxmax" type="number" value="10" step="any">
+                  </div>
+                  <div class="meta-group">
+                    <label class="small mb-1">Y min</label>
+                    <input class="form-control form-control-sm gymin" type="number" value="0" step="any">
+                  </div>
+                  <div class="meta-group">
+                    <label class="small mb-1">Y max</label>
+                    <input class="form-control form-control-sm gymax" type="number" value="10" step="any">
+                  </div>
+                  <div class="meta-group full">
+                    <label class="small mb-1">X Axis Label</label>
+                    <input class="form-control form-control-sm gxlabel" type="text" value="X Axis">
+                  </div>
+                  <div class="meta-group full">
+                    <label class="small mb-1">Y Axis Label</label>
+                    <input class="form-control form-control-sm gylabel" type="text" value="Y Axis">
+                  </div>
+                  <div class="meta-group full">
+                    <label class="small mb-1">Graph Title</label>
+                    <input class="form-control form-control-sm gtitle" type="text" value="Graph Title">
+                  </div>
+                </div>
+          
+                <div class="graph-canvas-wrap">
+                  <canvas class="graph-canvas"></canvas>
+                  <div class="graph-tooltip"></div>
+                </div>
+                <input type="hidden" class="graphs_json">
+              </div>
+            </template>
+          
+            
+        
+              <input type="hidden" name="graph_points_json" id="graph_points_json">
+              <input type="hidden" name="graph_vector_json" id="graph_vector_json">
+            {% endif %}
+  
+            {# 2. Final Stage: File Upload (Only shows in Final Phase) #}
+            {% if not is_preliminary %}
+              <div class="card border-primary bg-light mb-4 shadow-sm">
+                <div class="card-body">
+                  <h6 class="card-title text-primary fw-bold"><i class="fas fa-file-upload"></i> Final Report Document</h6>
+                  <p class="small text-muted">Upload your polished report (PDF/Docx) with final formatting.</p>
+                  {{ form.report_file }}
+                  {% if form.report_file.errors %}
+                    {% for error in form.report_file.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                  {% endif %}
+                </div>
+              </div>
+            {% endif %}
+  
+            {# 4. Adaptive Submit Section #}
+            <div class="mt-4 border-top pt-3">
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" required id="confirmSubmit">
+                <label for="confirmSubmit" class="form-check-label">
+                  {% if is_preliminary %}
+                    I confirm my raw data and observations are accurate for preliminary submission.
+                  {% else %}
+                    I confirm this is my final report submission.
+                  {% endif %}
+                </label>
+              </div>
+  
+              <div class="text-end">
+                {% if is_preliminary %}
+                  <button type="submit" name="submit_prelim" class="btn btn-success btn-lg" id="finalSubmitBtn">
+                    <i class="fas fa-save"></i> Submit Preliminary Data
+                  </button>
+                {% else %}
+                  <button type="submit" name="submit_final" class="btn btn-primary btn-lg" id="finalSubmitBtn">
+                    <i class="fas fa-paper-plane"></i> Submit Final Report
+                  </button>
+                {% endif %}
+              </div>
+            </div>
+          </form> {# The absolute end of your data-collecting form #}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/mathlive@0.98.6/dist/mathlive.min.js"></script>
+
+<script>
+(() => {
+  'use strict';
+
+  const graphsContainer = document.getElementById('graphsContainer');
+  window.editors = [];
+
+  class GraphEditor {
+    constructor(root) {
+      this.root = root;
+      this.canvas = root.querySelector('.graph-canvas');
+      this.ctx = this.canvas?.getContext('2d');
+      this.tooltip = root.querySelector('.graph-tooltip');
+      this.toolbar = root.querySelector('.graph-toolbar');
+
+      this.inputs = {
+        xmin: root.querySelector('.gxmin'),
+        xmax: root.querySelector('.gxmax'),
+        ymin: root.querySelector('.gymin'),
+        ymax: root.querySelector('.gymax'),
+        xlabel: root.querySelector('.gxlabel'),
+        ylabel: root.querySelector('.gylabel'),
+        title: root.querySelector('.gtitle')
+      };
+
+      this.hiddenInput = root.querySelector('.graphs_json');
+      this.tool = 'point';
+      this.points = [];
+      this.dragIndex = -1;
+      this.bestFit = null;
+
+      this.initToolbar();
+      this.resize();
+      this.bindInputs();
+      this.bindCanvas();
+      this.draw();
+    }
+
+    initToolbar() {
+      if(!this.toolbar) return;
+      const label = this.toolbar.querySelector('.active-tool-label');
+      this.toolbar.querySelectorAll('[data-tool]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          this.tool = btn.dataset.tool;
+          if(label) label.textContent = btn.textContent;
+        });
+      });
+      this.toolbar.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          if (action === 'clear') { this.points = []; this.bestFit = null; this.draw(); }
+          if (action === 'bestfit') { this.computeBestFit(); this.draw(); }
+          if (action === 'save') { this.draw(); }
+          if (action === 'export' && this.canvas) {
+            const link = document.createElement('a');
+            link.download = 'graph.png';
+            link.href = this.canvas.toDataURL('image/png');
+            link.click();
+          }
+        });
+      });
+    }
+
+    resize() {
+      if(!this.canvas) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      this.canvas.width = rect.width * dpr;
+      this.canvas.height = rect.height * dpr;
+      this.ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    axis() {
+      if(!this.canvas) return { x0: 0, y0: 0, x1: 0, y1: 0 };
+      const pad = 60;
+      const w = this.canvas.width / (window.devicePixelRatio || 1);
+      const h = this.canvas.height / (window.devicePixelRatio || 1);
+      return { x0: pad, y0: h - pad, x1: w - pad, y1: pad };
+    }
+
+    bindInputs() {
+      const redraw = () => this.draw();
+      Object.values(this.inputs).forEach(i => {
+        if(i) {
+          i.addEventListener('input', redraw);
+          i.addEventListener('change', redraw);
+        }
+      });
+      window.addEventListener('resize', () => { this.resize(); this.draw(); });
+    }
+
+    bindCanvas() {
+      if(!this.canvas) return;
+      this.canvas.addEventListener('mousedown', e => {
+        const p = this.mouse(e);
+        if(this.tool === 'point') this.points.push(this.pxToVal(p));
+        if(this.tool === 'move') this.dragIndex = this.hit(p);
+        this.draw();
+      });
+      this.canvas.addEventListener('mousemove', e => {
+        const p = this.mouse(e);
+        const v = this.pxToVal(p);
+        if(this.tooltip) {
+          this.tooltip.style.display = 'block';
+          this.tooltip.style.left = p.x + 10 + 'px';
+          this.tooltip.style.top = p.y + 10 + 'px';
+          this.tooltip.textContent = `(${v.x.toFixed(2)}, ${v.y.toFixed(2)})`;
+        }
+        if(this.dragIndex >= 0) { this.points[this.dragIndex] = v; this.draw(); }
+      });
+      this.canvas.addEventListener('mouseup', () => this.dragIndex = -1);
+      this.canvas.addEventListener('mouseleave', () => { 
+        this.dragIndex = -1; 
+        if(this.tooltip) this.tooltip.style.display = 'none'; 
+      });
+    }
+
+    pxToVal(p) {
+      const a = this.axis();
+      const xmin = this.inputs.xmin?.value ? +this.inputs.xmin.value : 0;
+      const xmax = this.inputs.xmax?.value ? +this.inputs.xmax.value : 10;
+      const ymin = this.inputs.ymin?.value ? +this.inputs.ymin.value : 0;
+      const ymax = this.inputs.ymax?.value ? +this.inputs.ymax.value : 10;
+      return { x: xmin + (p.x - a.x0) * (xmax - xmin) / (a.x1 - a.x0), y: ymax - (p.y - a.y1) * (ymax - ymin) / (a.y0 - a.y1) };
+    }
+
+    valToPx(v) {
+      const a = this.axis();
+      const xmin = this.inputs.xmin?.value ? +this.inputs.xmin.value : 0;
+      const xmax = this.inputs.xmax?.value ? +this.inputs.xmax.value : 10;
+      const ymin = this.inputs.ymin?.value ? +this.inputs.ymin.value : 0;
+      const ymax = this.inputs.ymax?.value ? +this.inputs.ymax.value : 10;
+      return { x: a.x0 + (v.x - xmin) * (a.x1 - a.x0) / (xmax - xmin), y: a.y1 + (ymax - v.y) * (a.y0 - a.y1) / (ymax - ymin) };
+    }
+
+    hit(p) { return this.points.findIndex(v => Math.hypot(this.valToPx(v).x - p.x, this.valToPx(v).y - p.y) < 8); }
+
+    catmullRom(points, segments = 16) {
+      if (points.length < 2) return [];
+      const get = i => i < 0 ? points[0] : i >= points.length ? points[points.length - 1] : points[i];
+      const out = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
+        for (let t = 0; t <= 1; t += 1 / segments) {
+          const t2 = t * t, t3 = t2 * t;
+          out.push({
+            x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+            y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+          });
+        }
+      }
+      return out;
+    }
+
+    computeBestFit() {
+      if (this.points.length < 2) return;
+      let sx = 0, sy = 0, sxx = 0, sxy = 0;
+      const n = this.points.length;
+      this.points.forEach(p => { sx += p.x; sy += p.y; sxx += p.x*p.x; sxy += p.x*p.y; });
+      const denom = n*sxx - sx*sx; if(Math.abs(denom)<1e-12) return;
+      const m = (n*sxy - sx*sy)/denom;
+      const c = (sy - m*sx)/n;
+      this.bestFit = { m, c };
+    }
+
+    draw() {
+      const ctx = this.ctx;
+      const a = this.axis();
+      const xmin = +this.inputs.xmin.value;
+      const xmax = +this.inputs.xmax.value;
+      const ymin = +this.inputs.ymin.value;
+      const ymax = +this.inputs.ymax.value;
+    
+      // 1. Clear canvas completely
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.restore();
+    
+      // 2. Background fill
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+      // 3. Draw grid
+      ctx.strokeStyle = '#eee';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 10; i++) {
+        const x = a.x0 + i * (a.x1 - a.x0) / 10;
+        const y = a.y1 + i * (a.y0 - a.y1) / 10;
+        // vertical lines
+        ctx.beginPath(); ctx.moveTo(x, a.y1); ctx.lineTo(x, a.y0); ctx.stroke();
+        // horizontal lines
+        ctx.beginPath(); ctx.moveTo(a.x0, y); ctx.lineTo(a.x1, y); ctx.stroke();
+      }
+    
+      // 4. Draw axes
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 2;
+      // X-axis
+      ctx.beginPath(); ctx.moveTo(a.x0, a.y0); ctx.lineTo(a.x1, a.y0); ctx.stroke();
+      // Y-axis
+      ctx.beginPath(); ctx.moveTo(a.x0, a.y0); ctx.lineTo(a.x0, a.y1); ctx.stroke();
+    
+      // 5. Clear text areas to prevent ghosting
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(0, a.y0 + 2, this.canvas.width, 50); // X-axis labels
+      ctx.fillRect(0, 0, a.x0 - 2, this.canvas.height); // Y-axis labels
+      ctx.fillRect((a.x0 + a.x1) / 2 - 100, 0, 200, 30); // Title area
+    
+      // 6. Draw axis numbers
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      for (let i = 0; i <= 10; i++) {
+        const x = a.x0 + i * (a.x1 - a.x0) / 10;
+        ctx.fillText((xmin + i * (xmax - xmin) / 10).toFixed(1), x, a.y0 + 28);
+      }
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 10; i++) {
+        const y = a.y1 + i * (a.y0 - a.y1) / 10;
+        ctx.fillText((ymax - i * (ymax - ymin) / 10).toFixed(1), a.x0 - 12, y + 4);
+      }
+    
+      // 7. Draw labels and title
+      ctx.textAlign = 'center';
+      ctx.fillText(this.inputs.xlabel.value, (a.x0 + a.x1) / 2, a.y0 + 42);
+      ctx.save();
+      ctx.translate(a.x0 - 42, (a.y0 + a.y1) / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(this.inputs.ylabel.value, 0, 0);
+      ctx.restore();
+      ctx.font = 'bold 14px system-ui';
+      ctx.fillText(this.inputs.title.value, (a.x0 + a.x1) / 2, 24);
+    
+      // 8. Clip to plotting area
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(a.x0, a.y1, a.x1 - a.x0, a.y0 - a.y1);
+      ctx.clip();
+    
+      // 9. Draw spline if enough points
+      if (this.points.length >= 2) {
+        const px = this.points.map(v => this.valToPx(v));
+        const spline = this.catmullRom(px);
+        ctx.strokeStyle = '#1f78b4';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        spline.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.stroke();
+      }
+    
+      // 10. Draw points
+      ctx.fillStyle = '#e74c3c';
+      this.points.forEach(v => {
+        const p = this.valToPx(v);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+    
+      // 11. Draw best-fit line
+      if (this.bestFit) {
+        const p1 = this.valToPx({ x: xmin, y: this.bestFit.m * xmin + this.bestFit.c });
+        const p2 = this.valToPx({ x: xmax, y: this.bestFit.m * xmax + this.bestFit.c });
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    
+      ctx.restore(); // end clip
+    
+      // 12. Save points & metadata to hidden input
+      if (this.hiddenInput) {
+        this.hiddenInput.value = JSON.stringify({
+          points: this.points,
+          axis: { xmin, xmax, ymin, ymax },
+          labels: {
+            xlabel: this.inputs.xlabel.value,
+            ylabel: this.inputs.ylabel.value,
+            title: this.inputs.title.value
+          },
+          bestFit: this.bestFit
+        });
+      }
+    }
+    
+
+    mouse(e) { 
+      if(!this.canvas) return {x:0, y:0}; 
+      const r = this.canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+  }
+
+  function addGraph() {
+    const template = document.getElementById('graph-template');
+    if(!template || !graphsContainer) return;
+    const clone = template.content.cloneNode(true);
+    graphsContainer.appendChild(clone);
+    const editorRoot = graphsContainer.lastElementChild;
+    const editor = new GraphEditor(editorRoot);
+    window.editors.push(editor);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if(graphsContainer) addGraph();
+    document.getElementById('addGraphBtn')?.addEventListener('click', addGraph);
+  });
+
+})();
+</script>
+
+  
+  
+  
+  
+
+<script>
+
+/* ====================  UTILITIES  ==================== */
+const $$ = id => document.getElementById(id);
+const STATUS = {NOT_SAVED:'not_saved', SAVING:'saving', SAVED:'saved', ERROR:'error'};
+let currentStatus = STATUS.NOT_SAVED, isPageInitializing = true;
+const experimentId = "{{ experiment.id }}";
+const userKey = "{{ request.user.id|default:'guest' }}";
+const LOCAL_KEY = `labreport:draft:${experimentId}:${userKey}`;
+
+function setStatus(s, title=''){
+  const el = $$("autosaveStatus"); if(!el) return;
+  const cls = { [STATUS.SAVING]:"badge bg-warning text-dark", [STATUS.SAVED]:"badge bg-success",
+                [STATUS.ERROR]:"badge bg-danger", [STATUS.NOT_SAVED]:"badge bg-secondary" };
+  const ico = { [STATUS.SAVING]:'<i class="fas fa-spinner fa-pulse"></i> Saving...',
+                [STATUS.SAVED]   :'<i class="fas fa-check-circle"></i> Saved',
+                [STATUS.ERROR]   :'<i class="fas fa-exclamation-triangle"></i> Error',
+                [STATUS.NOT_SAVED]:'<i class="fas fa-save"></i> Not saved' };
+  el.className = cls[s]; el.innerHTML = ico[s]; if(title) el.title = title;
+}
+function debounce(fn, wait){ let t; return function(...a){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,a), wait); }; }
+
+/* ====================  TABLE MANAGER  ==================== */
+/* ====================  TABLE MANAGER  ==================== */
+class TableManager {
+  constructor(){ this.tables = []; this.nextId = 0; }
+  
+  addTable(pre = null){
+    const id = `table_${this.nextId++}`;
+    const wrap = document.createElement('div'); 
+    wrap.className = 'table-wrapper border rounded p-2 mb-3 bg-light position-relative';
+    
+    // Title input (for compatibility with draft pad format)
+    const titleId = `table_title_${id}`;
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.className = 'form-control mb-2';
+    titleInput.id = titleId;
+    titleInput.value = pre?.title || `Table ${this.tables.length + 1}`;
+    titleInput.oninput = () => { this.updateAll(); localSave(); scheduleServerSave(); };
+    wrap.appendChild(titleInput);
+    
+    const del = document.createElement('button'); 
+    del.className = 'btn btn-sm btn-danger position-absolute top-0 end-0 m-2';
+    del.innerHTML = '&times;';
+    del.onclick = () => { 
+      wrap.remove(); 
+      this.tables = this.tables.filter(t=>t.id!==id); 
+      this.updateAll(); 
+      localSave(); 
+      scheduleServerSave(); 
+    };
+    wrap.appendChild(del);
+    
+    const div = document.createElement('div'); 
+    div.id = id; 
+    wrap.appendChild(div);
+    $$('tablesWrapper').appendChild(wrap);
+    
+    // Handle null columns - ensure minimum columns match data width
+    let rawCols = pre?.columns || ['Column 1'];
+    let data = pre?.data || [['']];
+    
+    // Ensure data is array of arrays
+    if (!Array.isArray(data) || data.length === 0) data = [['']];
+    const dataWidth = Math.max(...data.map(r => r.length), 1);
+    
+    // Pad columns to match data width, replace nulls
+    while (rawCols.length < dataWidth) {
+      rawCols.push(`Column ${rawCols.length + 1}`);
+    }
+    const columns = rawCols.map((c, idx) => ({
+      type: 'text', 
+      title: c || `Column ${idx + 1}`, 
+      width: 120
+    }));
+    
+    const inst = jspreadsheet(div, {
+      data: data,
+      columns: columns,
+      minDimensions: [1, 1],
+      allowInsertColumn: true, 
+      allowInsertRow: true, 
+      allowDeleteRow: true, 
+      allowDeleteColumn: true,
+      tableOverflow: true, 
+      tableWidth: '100%',
+      onchange: () => { this.updateAll(); localSave(); scheduleServerSave(); },
+      oninsertrow: () => { this.updateAll(); localSave(); scheduleServerSave(); },
+      ondeleterow: () => { this.updateAll(); localSave(); scheduleServerSave(); },
+      oninsertcolumn: () => { this.updateAll(); localSave(); scheduleServerSave(); },
+      ondeletecolumn: () => { this.updateAll(); localSave(); scheduleServerSave(); },
+      onmerge: () => { this.updateAll(); localSave(); scheduleServerSave(); },
+      onunmerge: () => { this.updateAll(); localSave(); scheduleServerSave(); },
+    });
+    
+    // Restore merges after initialization
+    const savedMerges = pre?.merges || {};
+    if (Object.keys(savedMerges).length > 0) {
+      setTimeout(() => {
+        try {
+          console.log("Restoring merges for table", id, ":", savedMerges);
+          Object.entries(savedMerges).forEach(([cell, dims]) => {
+            if (Array.isArray(dims) && dims.length >= 2 && /^[A-Z]+\d+$/.test(cell)) {
+              inst.setMerge(cell, parseInt(dims[0]), parseInt(dims[1]));
+            }
+          });
+        } catch(e) { 
+          console.error("Merge restore failed:", e); 
+        }
+      }, 100);
+    }
+    
+    this.tables.push({id, titleId, instance: inst}); 
+    this.updateAll();
+  }
+  
+  updateAll(){
+    const payload = this.tables.map(({titleId, instance}) => {
+      const titleEl = document.getElementById(titleId);
+      
+      // Extract merges safely
+      let merges = {};
+      try {
+        if (instance.getMerge) {
+          merges = instance.getMerge();
+        } else if (instance.options?.merge) {
+          merges = instance.options.merge;
+        }
+      } catch (e) {
+        console.warn("Could not extract merges:", e);
+      }
+      
+      return {
+        title: titleEl?.value || 'Untitled',
+        columns: instance.options.columns.map(c => c.title || 'Column'), 
+        data: instance.getData(),
+        merges: merges
+      };
+    });
+    
+    $$('finalTablesData').value = JSON.stringify(payload);
+    return payload;
+  }
+  
+  toJSON(){ 
+    return this.updateAll(); 
+  }
+  
+  clearAll(){ 
+    $$('tablesWrapper').innerHTML = ''; 
+    this.tables = []; 
+    this.nextId = 0; 
+  }
+  
+  restoreFromDraft(draft){ 
+    this.clearAll(); 
+    if (Array.isArray(draft) && draft.length) {
+      console.log("Restoring tables from draft:", draft);
+      draft.forEach(t => this.addTable(t));
+    } else {
+      this.addTable(); 
+    }
+  }
+}
+const tableManager = new TableManager();
+
+/* ====================  IMAGE HANDLING  ==================== */
+let draftImageDataURL = null;
+const imgInput   = $$('draftImageInput'),
+      imgPreview = $$('imagePreviewThumb'),
+      removeBtn  = $$('removeImageBtn'),
+      imgKey     = $$('draft_image_key');
+if(imgInput){
+  imgInput.onchange = e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = ev=>{ draftImageDataURL = ev.target.result; imgPreview.src = draftImageDataURL;
+                     imgPreview.style.display='block'; imgKey.value='local:'+Date.now();
+                     removeBtn.dataset.remove='false'; localSave(); scheduleServerSave(); };
+    r.readAsDataURL(f);
+  };
+}
+if(removeBtn){
+  removeBtn.onclick = ()=>{
+    draftImageDataURL = null; imgInput.value=''; imgPreview.src=''; imgPreview.style.display='none'; imgKey.value='';
+    removeBtn.dataset.remove='true'; localSave(); scheduleServerSave();
+  };
+}
+
+$$('clearGraphBtn')?.addEventListener('click',()=>{ $$('xValues').value=''; $$('yValues').value='';
+                                                     if(window.reportChart){ window.reportChart.destroy(); window.reportChart=null;} });
+
+
+
+
+/* ====================  AUTOSAVE  ==================== */
+/* ====================  AUTOSAVE  ==================== */
+function localSave() {
+  try {
+    const payload = {
+      observation: document.getElementById('observation')?.value || '',
+      tables: tableManager.toJSON(),
+      math_sections: (() => {
+        const sections = {};
+        document.querySelectorAll('.math-editable').forEach(textarea => {
+          sections[textarea.name] = textarea.value;
+        });
+        return sections;
+      })(),
+      questions: (() => {
+        const q = {};
+        document.querySelectorAll('[name^="question_"]').forEach(el => q[el.name] = el.value);
+        return q;
+      })(),
+      timestamp: new Date().toISOString()
+    };
+
+    const validEditors = (window.editors || []).filter(ed => ed && ed.canvas && ed.hiddenInput);
+    payload.graphs = validEditors.map(ed => JSON.parse(ed.hiddenInput.value)).filter(Boolean);
+
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(payload));
+    console.log("Draft saved to LocalStorage:", payload.math_sections);
+    setStatus(STATUS.SAVED, 'Saved locally');
+  } catch (e) {
+    console.error("localSave failed:", e);
+    setStatus(STATUS.ERROR, 'Local save failed');
+  }
+}
+
+
+
+
+
+
+async function serverSave() {
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  
+  const mathData = {};
+  document.querySelectorAll('.math-editable').forEach(tx => mathData[tx.name] = tx.value);
+  
+  fd.append('math_sections', JSON.stringify(mathData));
+  fd.append('data', JSON.stringify(tableManager.toJSON()));
+
+  try {
+    setStatus(STATUS.SAVING);
+    const res = await fetch("{% url 'lab:auto_save_draft' experiment.id %}", {method:'POST', body:fd});
+    const dat = await res.json();
+    console.log("Server autosave complete:", dat);
+    if(dat.status==='saved') {
+      setStatus(STATUS.SAVED, 'Draft saved '+new Date().toLocaleTimeString());
+    }
+  } catch(err) { 
+    console.error('serverSave error:', err); 
+  }
+}
+const scheduleServerSave = debounce(serverSave, 60000);
+function bindAutosaveInputs(){
+  document.querySelectorAll('textarea.autosave-field, input.autosave-field, #observation').forEach(el=>{
+    el.addEventListener('input', ()=>{ localSave(); scheduleServerSave(); });
+  });
+}
+
+
+
+/* ====================  MATH LIVE SET-UP  ==================== */
+function whenMathLiveReady(cb){
+  if(window.MathLive && window.MathLive.MathfieldElement) return cb();
+  window.addEventListener('mathlive-cdn-loaded', cb);
+}
+/* ==================== UNIVERSAL MATH LIVE SET-UP ==================== */
+
+// 1. Global variable to track which field is being edited
+window.currentActiveMathfield = null;
+function initUniversalMathLive() {
+  const mathFields = document.querySelectorAll('.math-editable');
+
+  mathFields.forEach((textarea) => {
+    const mf = new MathLive.MathfieldElement();
+    mf.smartMode = true; 
+    mf.smartFence = true;
+    mf.value = textarea.value;
+
+    textarea.style.display = 'none';
+    textarea.after(mf);
+
+    mf.addEventListener('input', () => {
+      textarea.value = mf.getValue('latex');
+      if (typeof localSave === "function") localSave();
+    });
+
+    mf.addEventListener('focusin', () => { 
+      window.currentActiveMathfield = mf; 
+      updateToolbarUI(mf.mode);
+    });
+
+    // Fix: Use 'addRowAfter' instead of 'newline'
+    mf.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        mf.executeCommand('addRowAfter'); 
+        ev.preventDefault();
+      }
+    });
+  });
+
+  function updateToolbarUI(mode) {
+    const btn = document.getElementById('toggleHybridModeBtn');
+    const label = document.getElementById('currentModeLabel');
+    if (!btn || !label) return;
+
+    if (mode === 'text') {
+      btn.innerHTML = '<i class="fas fa-calculator"></i> Switch to Math Mode';
+      btn.className = 'btn btn-sm btn-warning';
+      label.innerText = 'Text (Sentences)';
+    } else {
+      btn.innerHTML = '<i class="fas fa-font"></i> Switch to Text Mode';
+      btn.className = 'btn btn-sm btn-info';
+      label.innerText = 'Math (Equations)';
+    }
+  }
+
+  const toolbar = document.getElementById('mathToolbar');
+  if (toolbar) {
+    toolbar.querySelectorAll('button[data-insert]').forEach(btn => {
+      btn.onmousedown = (e) => {
+        e.preventDefault(); 
+        const mf = window.currentActiveMathfield;
+        if (mf) {
+          mf.mode = 'math';
+          mf.executeCommand(['insert', btn.dataset.insert]);
+          updateToolbarUI('math');
+          mf.focus();
+        }
+      };
+    });
+
+    const modeBtn = document.getElementById('toggleHybridModeBtn');
+    if (modeBtn) {
+      modeBtn.onmousedown = (e) => {
+        e.preventDefault();
+        const mf = window.currentActiveMathfield;
+        if (mf) {
+          const newMode = (mf.mode === 'math') ? 'text' : 'math';
+          mf.mode = newMode;
+          updateToolbarUI(newMode);
+          mf.focus();
+        }
+      };
+    }
+
+    const newLineBtn = document.getElementById('addMathLineBtn');
+    if (newLineBtn) {
+      newLineBtn.onmousedown = (e) => {
+        e.preventDefault();
+        if (window.currentActiveMathfield) {
+          // Fix: Use 'addRowAfter' instead of 'newline'
+          window.currentActiveMathfield.executeCommand('addRowAfter');
+          window.currentActiveMathfield.focus();
+        }
+      };
+    }
+  }
+}
+
+/* ====================  INITIALISATION  ==================== */
+document.addEventListener('DOMContentLoaded', () => {
+  (function poll() {
+    if (window.MathLive && window.MathLive.MathfieldElement) {
+      window.dispatchEvent(new CustomEvent('mathlive-cdn-loaded'));
+    } else setTimeout(poll, 30);
+  })();
+
+  let initialTables = [];
+  try {
+    // 1. Get raw data and handle potential string encoding
+    let rawDraft = {{ draft_data|default:"[]"|safe }};
+    
+    // 2. If the data came in as a string, parse it to an object/array
+    if (typeof rawDraft === 'string') {
+        try {
+            rawDraft = JSON.parse(rawDraft);
+        } catch(e) {
+            console.error("JSON parse failed for rawDraft string:", e);
+            rawDraft = [];
+        }
+    }
+
+    // 3. 🔥 FIX: Handle the Object-to-Array conversion (Matches your screenshot)
+    // Your DB stores {"data": [...], "title": "..."} but JSpreadsheet needs [{...}]
+    if (rawDraft && typeof rawDraft === 'object' && !Array.isArray(rawDraft)) {
+        initialTables = [rawDraft];
+    } else {
+        initialTables = Array.isArray(rawDraft) ? rawDraft : [];
+    }
+
+    console.log("✅ Successfully Parsed initialTables:", initialTables);
+  } catch (e) {
+    console.error("❌ Failed to parse draft_data context:", e);
+    initialTables = [];
+  }
+
+  // Clear existing tables in the UI before preloading
+  const wrapper = document.getElementById('tablesWrapper');
+  if (wrapper) wrapper.innerHTML = ''; 
+
+  // Proceed to the localStorage check and restoration logic...
+
+  /* ====================  INITIALISATION  ==================== */
+  const raw = localStorage.getItem(LOCAL_KEY);
+  let localDraft = null;
+
+  // Try to parse local storage if it exists
+  if (raw) {
+    try {
+      localDraft = JSON.parse(raw);
+    } catch (e) {
+      console.warn('Could not parse local draft', e);
+    }
+  }
+
+  // 1. Restore Tables: Server draft (initialTables) always wins if it has content
+  if (initialTables.length > 0) {
+    console.log("Restoring tables from server draft");
+    tableManager.restoreFromDraft(initialTables);
+  } else if (localDraft && localDraft.tables && localDraft.tables.length > 0) {
+    console.log("Restoring tables from local storage");
+    tableManager.restoreFromDraft(localDraft.tables);
+  } else {
+    console.log("No draft found, adding empty table");
+    tableManager.addTable();
+  }
+
+  // 2. Restore Observation: Priority to LocalStorage, fallback to Server
+  const obsField = $$('observation') || document.querySelector('[name="observation"]');
+  if (obsField) {
+    obsField.value = (localDraft && localDraft.observation) 
+                     ? localDraft.observation 
+                     : "{{ draft.observation|escapejs }}";
+  }
+
+  // 3. Restore Math Sections and Questions from LocalDraft
+  if (localDraft) {
+    if (localDraft.math_sections) {
+      Object.entries(localDraft.math_sections).forEach(([name, value]) => {
+        const el = document.getElementsByName(name)[0];
+        if (el) {
+          el.value = value;
+          console.log(`Restored ${name} content.`);
+        }
+      });
+    }
+
+    if (localDraft.questions) {
+      Object.entries(localDraft.questions).forEach(([k, v]) => {
+        const el = document.getElementsByName(k)[0];
+        if (el) el.value = v;
+      });
+    }
+
+    if (localDraft.image_data) {
+      draftImageDataURL = localDraft.image_data;
+      imgPreview.src = draftImageDataURL;
+      imgPreview.style.display = 'block';
+    }
+  }
+
+  // 4. Handle Server-side Image fallback
+  {% if draft.image %}
+    if (!draftImageDataURL) {
+      imgPreview.src = "{{ draft.image.url }}";
+      imgPreview.style.display = 'block';
+      imgKey.value = "{{ draft.image.name }}";
+    }
+  {% endif %}
+
+  // 5. Initialize Plugins and Listeners
+  initUniversalMathLive();
+
+  $$('addTableBtn')?.addEventListener('click', () => { 
+    tableManager.addTable(); 
+    localSave(); 
+    scheduleServerSave(); 
+  });
+
+  bindAutosaveInputs();
+
+  setTimeout(() => {
+    setInterval(localSave, 10000);
+    isPageInitializing = false;
+  }, 1000);
+});
+{% comment %} document.querySelector('[data-action="save"]')?.addEventListener('click', async (e) => {
+  e.preventDefault();
+
+  // 1. Sync MathLive
+  if(window.mathField) $$('id_data_analysis').value = window.mathField.getValue('latex');
+
+  const validEditors = (window.editors || []).filter(ed => ed?.canvas && ed?.hiddenInput);
+
+  function collectGraphsForSubmit() {
+    const validEditors = (window.editors || []).filter(
+      ed => ed?.hiddenInput?.value
+    );
+  
+    const graphs = validEditors.map(ed => {
+      try {
+        return JSON.parse(ed.hiddenInput.value);
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+  
+    // points array (what Django wants)
+    document.getElementById('graph_points_json').value = JSON.stringify(graphs);
+  
+    // best-fit only (vector_json)
+    const vectors = graphs.map(g => g.bestFit || null);
+    document.getElementById('graph_vector_json').value = JSON.stringify(vectors);
+  }
+  
+
+  // 3. Ensure tables are synced
+  tableManager.updateAll();
+
+  // 4. Save to server without submitting form
+  await serverSave(); // your existing AJAX function
+  console.log('Graph saved to DB!');
+}); {% endcomment %}
+/* ==================== FINAL SUBMISSION SYNC ==================== */
+document.getElementById('labReportForm')?.addEventListener('submit', function(e) {
+  console.log("Submission started...");
+
+  // 1. Sync all MathLive fields (including hidden ones)
+  document.querySelectorAll('.math-editable').forEach(textarea => {
+    const mf = textarea.nextElementSibling;
+    if (mf && mf.tagName === 'MATH-FIELD') {
+      textarea.value = mf.getValue('latex');
+    }
+  });
+
+  // 2. Sync Table data
+  if (typeof tableManager !== 'undefined') {
+    tableManager.updateAll();
+  }
+
+  // 3. Sync Graph data (only if they exist in the current stage)
+  const pointsInput = document.getElementById('graph_points_json');
+  const vectorInput = document.getElementById('graph_vector_json');
+  
+  if (pointsInput && window.editors) {
+    const graphs = window.editors
+      .filter(ed => ed && ed.hiddenInput && ed.hiddenInput.value)
+      .map(ed => {
+        try { return JSON.parse(ed.hiddenInput.value); } catch(err) { return null; }
+      }).filter(Boolean);
+
+    pointsInput.value = JSON.stringify(graphs);
+    if (vectorInput) {
+      vectorInput.value = JSON.stringify(graphs.map(g => g.bestFit || null));
+    }
+  }
+
+  // 4. Force check the checkbox (extra safety)
+  if (!document.getElementById('confirmSubmit').checked) {
+    alert("Please confirm your submission by checking the box.");
+    e.preventDefault();
+    return false;
+  }
+
+  console.log("Form sync complete. Data sent to server.");
+});
+
+
+
+
+</script>
+{% endblock %}
+
+

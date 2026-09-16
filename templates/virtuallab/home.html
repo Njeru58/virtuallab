@@ -1,0 +1,126 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load static %}
+{% block title %}Virtual Physics Laboratory | Interactive Practicals{% endblock title %}
+
+{% block extra_css %}
+<style>
+  .jumbotron-lab-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0369a1 100%);
+    position: relative;
+    padding: 5rem 1rem;
+    overflow: hidden;
+  }
+  .feature-card {
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+  .icon-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="jumbotron jumbotron-fluid jumbotron-lab-hero text-white text-center mb-0">
+  <div class="container position-relative">
+    <div class="mb-3">
+      <i class="fa-solid fa-atom fa-4x text-info"></i>
+    </div>
+
+    <h1 class="display-3 font-weight-bold tracking-tight mb-2">
+      Virtual Physics Laboratory
+    </h1>
+
+    <p class="lead text-light mb-3 col-md-8 mx-auto">
+      Interactive experimental simulations, procedural guidance, data collection, and automated lab report evaluations.
+    </p>
+
+    {% if not request.user.is_authenticated %}
+      <p class="text-slate-300 small mb-4">
+        Register with your university student credentials to access active practical sessions.
+      </p>
+      <div class="d-flex justify-content-center gap-2 flex-wrap">
+        <a href="{% url 'lab:register' %}" class="btn btn-lg btn-info px-4 mr-2">
+          <i class="fa-solid fa-user-plus mr-1"></i> Register Account
+        </a>
+        <a href="{% url 'lab:login' %}" class="btn btn-lg btn-outline-light px-4">
+          <i class="fa-solid fa-arrow-right-to-bracket mr-1"></i> Student Login
+        </a>
+      </div>
+    {% else %}
+      <p class="lead mb-4">
+        Welcome back, <strong>{{ request.user.first_name|default:request.user.username }}</strong>!
+      </p>
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <a href="{% url 'lab:experiment_list' %}" class="btn btn-lg btn-info px-4 mr-2">
+          <i class="fa-solid fa-flask mr-1"></i> Explore Practicals
+        </a>
+        <a href="{% url 'lab:report_list' %}" class="btn btn-lg btn-outline-light px-4">
+          <i class="fa-solid fa-book-open mr-1"></i> My Evaluated Reports
+        </a>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Core Features Grid -->
+<section class="py-5 bg-white">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="font-weight-bold text-dark">Laboratory Architecture</h2>
+      <p class="text-muted">A fully contained environment for physical sciences assessment</p>
+    </div>
+
+    <div class="row">
+      <!-- Feature 1: Experiment Guidance -->
+      <div class="col-md-4 mb-4">
+        <div class="p-4 bg-light rounded-lg h-100 feature-card text-center">
+          <div class="icon-circle bg-info text-white mb-3 shadow-sm">
+            <i class="fa-solid fa-microscope fa-lg"></i>
+          </div>
+          <h4 class="font-weight-bold">Structured Procedures</h4>
+          <p class="text-muted small">
+            Step-by-step apparatus alignment, theory background, and precision observation instructions.
+          </p>
+        </div>
+      </div>
+
+      <!-- Feature 2: Data Collection & Autosave -->
+      <div class="col-md-4 mb-4">
+        <div class="p-4 bg-light rounded-lg h-100 feature-card text-center">
+          <div class="icon-circle bg-primary text-white mb-3 shadow-sm">
+            <i class="fa-solid fa-chart-line fa-lg"></i>
+          </div>
+          <h4 class="font-weight-bold">Live Data & Drafts</h4>
+          <p class="text-muted small">
+            Input experimental measurements with real-time background saving and tabular data processing.
+          </p>
+        </div>
+      </div>
+
+      <!-- Feature 3: Automated Marking -->
+      <div class="col-md-4 mb-4">
+        <div class="p-4 bg-light rounded-lg h-100 feature-card text-center">
+          <div class="icon-circle bg-success text-white mb-3 shadow-sm">
+            <i class="fa-solid fa-clipboard-check fa-lg"></i>
+          </div>
+          <h4 class="font-weight-bold">Automated Evaluation</h4>
+          <p class="text-muted small">
+            Instant analytical evaluation of objectives, error analysis, discussions, and standard scientific formatting.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock content %}

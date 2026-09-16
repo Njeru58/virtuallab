@@ -1,0 +1,265 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load custom_filters %}
+
+{% block title %}Lab Report: {{ report.experiment.title }}{% endblock %}
+
+{% block content %}
+<div class="container animate-fade-in mt-4">
+
+  <!-- ===== Header ===== -->
+  <div class="bg-light rounded shadow-sm p-4 mb-4 text-center">
+    <h3 class="fw-bold mb-1">
+      <i class="fa fa-flask text-primary"></i> {{ report.experiment.title }}
+    </h3>
+    <p class="text-muted mb-0">
+      Submitted by <strong>{{ report.student.username }}</strong>
+    </p>
+    <p class="text-muted fst-italic">
+      {{ report.submitted_at|date:"F d, Y @ h:i A" }}
+    </p>
+  </div>
+
+  <div class="row">
+    <!-- ================= Left Column ================= -->
+    <div class="col-md-8">
+      <div class="d-flex justify-content-between mb-3">
+        <button id="toggleAll" class="btn btn-outline-primary btn-sm">
+          <i class="fa fa-expand"></i> Expand All
+        </button>
+        <select id="chartType" class="form-select form-select-sm w-auto">
+          <option value="radar">Radar</option>
+          <option value="doughnut">Doughnut</option>
+          <option value="bar">Bar</option>
+        </select>
+      </div>
+
+      {% if not_evaluated %}
+        <div class="alert alert-info">
+          <i class="fa fa-info-circle"></i> This report has not been evaluated yet.
+        </div>
+      {% else %}
+        <div class="card mb-4 shadow-sm">
+          <div class="card-header bg-light">
+            <i class="fa fa-chart-pie text-primary me-1"></i> Evaluation Score Chart
+          </div>
+          <div class="card-body">
+            <canvas id="evaluationChart" height="300"></canvas>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Accordion with report sections -->
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <i class="fa fa-file-alt"></i> Submitted Report
+        </div>
+        <div class="card-body p-0">
+          <div id="reportAccordion">
+
+            <!-- Group members -->
+            <div class="card">
+              <div class="card-header" id="heading_group">
+                <button class="btn btn-link text-start w-100" 
+                        data-bs-toggle="collapse" data-bs-target="#collapse_group" 
+                        aria-expanded="true" aria-controls="collapse_group">
+                  <i class="fa fa-users me-2"></i> Group Members
+                </button>
+              </div>
+              <div id="collapse_group" class="collapse show" data-bs-parent="#reportAccordion">
+                <div class="card-body">{{ report.group_members|linebreaksbr }}</div>
+              </div>
+            </div>
+
+            <!-- All other sections -->
+            {% for section, title, icon in sections %}
+              <div class="card">
+                <div class="card-header" id="heading_{{ section }}">
+                  <button class="btn btn-link text-start w-100 collapsed" 
+                          data-bs-toggle="collapse" data-bs-target="#collapse_{{ section }}" 
+                          aria-expanded="false" aria-controls="collapse_{{ section }}">
+                    <i class="fa fa-{{ icon }} me-2"></i> {{ title }}
+                  </button>
+                </div>
+                <div id="collapse_{{ section }}" class="collapse" data-bs-parent="#reportAccordion">
+                  <div class="card-body">
+
+                    {% if section == "data_analysis" %}
+                      <div class="data-analysis-box">
+                        {% if data_analysis_lines %}
+                          {% for line in data_analysis_lines %}
+                            <div class="math-line p-2 mb-1 bg-light border rounded">
+                              $$ {{ line|safe }} $$
+                            </div>
+                          {% endfor %}
+                        {% else %}
+                          <p class="text-muted fst-italic">No data analysis provided.</p>
+                        {% endif %}
+                      </div>
+
+                      {% if error_analysis %}
+                        <hr>
+                        <h6 class="fw-bold">
+                          <i class="fa fa-exclamation-triangle text-danger me-1"></i>
+                          Error / Uncertainty Analysis
+                        </h6>
+                        <p>{{ error_analysis|linebreaksbr }}</p>
+                      {% endif %}
+
+                      {% for table in experimental_tables %}
+                        <div class="table-responsive mt-3">
+                          <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                              <tr>
+                                {% for col in table.0 %}
+                                  <th class="text-center">{{ col }}</th>
+                                {% endfor %}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for row in table|slice:"1:" %}
+                                <tr>
+                                  {% for cell in row %}
+                                    <td class="mathjax-content">{{ cell }}</td>
+                                  {% endfor %}
+                                </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <p>{{ report|attr:section|linebreaksbr }}</p>
+                    {% endif %}
+
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= Right Column ================= -->
+    <div class="col-md-4">
+      {% if not_evaluated %}
+        <div class="alert alert-info shadow-sm sticky-top mt-3" style="top:20px;">
+          Not evaluated yet.
+        </div>
+      {% else %}
+        <div class="card shadow-sm sticky-top" style="top:20px;">
+          <div class="card-header bg-dark text-white">
+            <i class="fa fa-award"></i> Evaluation Summary
+            <span class="badge bg-light text-dark float-end">
+              Avg: {{ overall_score|floatformat:1 }}/10
+            </span>
+          </div>
+          <ul class="list-group list-group-flush">
+            {% for section, title, icon in sections %}
+              {% if section != "group_members" %}
+                {% with mark=scores|dict_get:section feedback=feedback|dict_get:section %}
+                  <li class="list-group-item py-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <strong class="text-capitalize">{{ title }}</strong>
+                      <span class="badge rounded-pill
+                        {% if mark|default:0 >= 8 %}bg-success
+                        {% elif mark|default:0 >= 5 %}bg-warning text-dark
+                        {% else %}bg-danger{% endif %}">
+                        {{ mark|default:"-" }}/10
+                      </span>
+                    </div>
+                    {% if feedback %}
+                    <p class="small text-muted mb-0">
+                      <i class="fa fa-comment-alt me-1"></i>
+                      {{ feedback|safe }}
+                    </p>                    
+                    {% else %}
+                      <p class="small text-muted mb-0 fst-italic">No feedback for this section.</p>
+                    {% endif %}
+                  </li>
+                {% endwith %}
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- MathJax -->
+{% comment %} <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script> {% endcomment %}
+<script async id="MathJax-script"
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<!-- Chart.js -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const toggleBtn = document.getElementById('toggleAll');
+  const collapses = document.querySelectorAll('#reportAccordion .collapse');
+  let allExpanded = false;
+
+  toggleBtn.addEventListener('click', () => {
+    allExpanded = !allExpanded;
+    collapses.forEach(c => {
+      const bsCollapse = new bootstrap.Collapse(c, { toggle: false });
+      allExpanded ? bsCollapse.show() : bsCollapse.hide();
+    });
+    toggleBtn.innerHTML = allExpanded
+      ? '<i class="fa fa-compress"></i> Collapse All'
+      : '<i class="fa fa-expand"></i> Expand All';
+  });
+
+  const ctx = document.getElementById('evaluationChart');
+  if (!ctx) return;
+
+  const labels = [
+    {% for sec, vals in scores.items %}
+      "{{ sec|capfirst }}"{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+  ];
+  const data = [
+    {% for sec, vals in scores.items %}
+      {{ vals|default:0 }}{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+  ];
+
+  const palette = {
+    radar: {bg: 'rgba(255,99,132,0.3)', border: 'rgba(255,99,132,0.9)'},
+    doughnut: {bg: ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40']},
+    bar: {bg: 'rgba(54,162,235,0.7)', border: 'rgba(54,162,235,1)'}
+  };
+
+  let currentChart;
+  function render(type) {
+    if (currentChart) {
+      currentChart.destroy();
+      currentChart = null;
+    }
+    const opts = {
+      type: type,
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Scores',
+          data: data,
+          backgroundColor: palette[type].bg,
+          borderColor: palette[type].border || '#fff',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: type === 'bar' ? { y: { beginAtZero: true, max: 10 } } : {},
+        plugins: { legend: { display: type !== 'bar' } }
+      }
+    };
+    currentChart = new Chart(ctx, opts);
+  }
+
+  render('radar');
+  document.getElementById('chartType').addEventListener('change', e => render(e.target.value));
+});
+</script>
+{% endblock %}

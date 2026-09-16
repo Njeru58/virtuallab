@@ -1,0 +1,1306 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load static %}
+{% load custom_filters %}
+{% load thumbnail %}
+
+{% block title %}{{ experiment.title }} - Virtual Lab{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ckeditor/ckeditor5-build-classic@41.0.0/build/contents.css">
+<style>
+  /* ---------- RESIZABLE / DRAGGABLE DRAFT PAD ---------- */
+  #floatingDraftPad{
+    position:fixed;
+    bottom:80px;
+    right:20px;
+    width:clamp(280px, 90vw, 420px);
+    height:clamp(250px, 60vh, 600px);
+    min-width:260px;
+    min-height:200px;
+    max-width:90vw;
+    max-height:80vh;
+    overflow:auto;
+    resize:none;
+    transform:translateX(120%);
+    transition:transform .4s cubic-bezier(.4,0,.2,1);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    border-radius:1rem;
+    box-shadow:0 8px 30px rgba(0,0,0,.18);
+  }
+  #floatingDraftPad.show{transform:translateX(0);}
+  
+  #draftToggleBtn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1040;
+  }
+
+  .resize-handle {
+    cursor: se-resize;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    margin-left: 6px;
+    color: #6c757d;
+    transition: color 0.2s, transform 0.2s;
+  }
+  
+  .resize-handle:hover {
+    color: #0d6efd;
+    transform: scale(1.1);
+  }
+  
+  /* ---------- GLASS CARDS ---------- */
+  .glass{
+    background:#fff;
+    border-radius:1rem;
+    box-shadow:0 4px 20px rgba(0,0,0,.08);
+    transition:transform .25s, box-shadow .25s;
+    overflow:hidden;
+  }
+  .glass:hover{
+    transform:translateY(-4px);
+    box-shadow:0 12px 30px rgba(0,0,0,.15);
+  }
+  .glass img{transition:transform .3s ease;}
+  .glass:hover img{transform:scale(1.08);}
+  .glass figcaption{
+    opacity:0;
+    transform:translateY(10px);
+    transition:all .3s;
+  }
+  .glass:hover figcaption{opacity:1;transform:translateY(0);}
+  
+  /* ---------- MISC ---------- */
+  .text-content{white-space:normal !important; word-wrap:break-word; line-height:1.6;}
+  .text-content p {margin-bottom: 1rem;}
+
+  /* ============================================
+     CKEditor 5 IMAGE STYLES — All Cases
+     ============================================ */
+
+  .text-content img {
+      max-width: 100% !important;
+      height: auto !important;
+      max-height: 420px !important;
+      object-fit: contain;
+      border-radius: 0.5rem;
+      display: block;
+      margin: 1.5rem auto;
+  }
+
+  .text-content figure.image {
+      display: block !important;
+      max-width: 100% !important;
+      width: fit-content !important;
+      min-width: 200px;
+      margin: 2rem auto;
+      padding: 1.25rem;
+      background: #ffffff;
+      border-radius: 1rem;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06),
+                  0 8px 24px rgba(0, 0, 0, 0.04);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .text-content figure.image:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+                  0 12px 32px rgba(0, 0, 0, 0.06);
+  }
+
+  .text-content figure.image img {
+      width: auto !important;
+      max-width: 100% !important;
+      height: auto !important;
+      max-height: 420px !important;
+      border-radius: 0.5rem;
+      margin: 0 auto;
+      display: block;
+  }
+
+  .text-content p > img:only-child,
+  .text-content p > img:last-child,
+  .text-content p > img:first-child {
+      display: block;
+      max-width: 100% !important;
+      height: auto !important;
+      max-height: 420px !important;
+      border-radius: 0.75rem;
+      margin: 1.5rem auto;
+      padding: 1.25rem;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06),
+                  0 8px 24px rgba(0, 0, 0, 0.04);
+      object-fit: contain;
+  }
+
+  .text-content figure.image.image_resized {
+      width: auto !important;
+      max-width: 100% !important;
+      margin-left: auto;
+      margin-right: auto;
+  }
+
+  .text-content figure.image.image_resized img {
+      width: 100% !important;
+      height: auto !important;
+  }
+
+  .text-content figure.image.image-style-side {
+      float: right;
+      max-width: 50% !important;
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+      margin-top: 0.5rem;
+      clear: both;
+  }
+
+  .text-content figure.image.image-style-side img {
+      max-height: 300px !important;
+  }
+
+  .text-content span.image-inline,
+  .text-content p img:not(:only-child):not(:last-child):not(:first-child) {
+      display: inline-block;
+      vertical-align: middle;
+      max-width: 100%;
+  }
+
+  .text-content span.image-inline img,
+  .text-content p img:not(:only-child):not(:last-child):not(:first-child) {
+      display: inline-block;
+      max-height: 2em;
+      width: auto;
+      margin: 0 0.25em;
+      vertical-align: middle;
+      border-radius: 0.25rem;
+      padding: 0;
+      background: none;
+      border: none;
+      box-shadow: none;
+  }
+
+  .text-content figure.image figcaption {
+      display: inline-block;
+      margin-top: 0.75rem;
+      padding: 0.35rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #495057;
+      background: #f1f3f5;
+      border-radius: 2rem;
+      font-style: normal;
+      letter-spacing: 0.02em;
+  }
+
+  @media (max-width: 768px) {
+      .text-content figure.image,
+      .text-content p > img:only-child,
+      .text-content p > img:last-child,
+      .text-content p > img:first-child {
+          width: 100% !important;
+          margin: 1.5rem auto;
+          padding: 1rem;
+      }
+
+      .text-content figure.image.image-style-side {
+          float: none;
+          max-width: 100% !important;
+          margin-left: auto;
+          margin-right: auto;
+          margin-top: 1.5rem;
+      }
+
+      .text-content img {
+          max-height: 350px !important;
+      }
+  }
+
+  @media (max-width: 576px) {
+      .text-content figure.image,
+      .text-content p > img:only-child,
+      .text-content p > img:last-child,
+      .text-content p > img:first-child {
+          padding: 0.75rem;
+          border-radius: 0.75rem;
+          margin: 1rem auto;
+      }
+
+      .text-content figure.image figcaption {
+          font-size: 0.75rem;
+          padding: 0.25rem 0.75rem;
+      }
+
+      .text-content img {
+          max-height: 280px !important;
+      }
+  }
+
+  summary{cursor:pointer;font-weight:bold;color:#0d6efd;margin-bottom:.5rem;}
+  details{margin-bottom:1.5rem;}
+  #observationStatus{font-size:0.8em;color:#6c757d;margin-top:-8px;margin-bottom:8px;display:none;}
+
+  /* ============================================
+     CKEditor 5 RICH TEXT TABLE FORMATTING FIX
+     ============================================ */
+  .text-content table,
+  .text-content .ck-content table {
+    width: 100% !important;
+    margin: 1.5rem 0 !important;
+    border-collapse: collapse !important;
+    background-color: #ffffff !important;
+    border: 1px solid #dee2e6 !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+  }
+
+  .text-content table th,
+  .text-content .ck-content table th {
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
+    font-weight: 600 !important;
+    padding: 0.75rem !important;
+    border: 1px solid #dee2e6 !important;
+    text-align: center !important;
+  }
+
+  .text-content table td,
+  .text-content .ck-content table td {
+    padding: 0.75rem !important;
+    border: 1px solid #dee2e6 !important;
+    vertical-align: middle !important;
+    color: #495057 !important;
+    min-width: 60px;
+  }
+
+  .text-content table tr:nth-child(even),
+  .text-content .ck-content table tr:nth-child(even) {
+    background-color: #fdfdfd !important;
+  }
+
+  /* Fix Context Menu Layering & Positioning */
+  .jexcel_contextmenu {
+      z-index: 10000 !important;
+      position: fixed !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2) !important;
+      border-radius: 6px !important;
+  }
+
+  /* ---- button shake ---- */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .shake { animation: shake .5s ease-in-out; }
+
+  /* ---- overlay & card ---- */
+  .deadline-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .deadline-card {
+    background: rgba(255,255,255,.80);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,.30);
+    border-radius: 1.25rem;
+    padding: 2.2rem 2.8rem;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.25);
+    transform: scale(.95);
+    opacity: 0;
+    transition: transform .35s ease, opacity .35s ease;
+  }
+
+  .deadline-card.show {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  .deadline-icon {
+    font-size: 3.2rem;
+    color: #f57c00;
+    margin-bottom: .75rem;
+  }
+  .deadline-title {
+    font-weight: 600;
+    font-size: 1.3rem;
+    color: #222;
+    margin-bottom: .25rem;
+  }
+  .deadline-sub {
+    font-size: .95rem;
+    color: #444;
+    margin-bottom: 1.5rem;
+  }
+
+  /* ---- circular countdown ---- */
+  .countdown-ring {
+    width: 62px;
+    height: 62px;
+    margin: 0 auto 1.2rem;
+  }
+  .countdown-ring circle {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+  .countdown-ring .bg {
+    stroke: #e0e0e0;
+  }
+  .countdown-ring .progress {
+    stroke: #f57c00;
+    stroke-dasharray: 157;
+    stroke-dashoffset: 157;
+    transition: stroke-dashoffset 4s linear;
+  }
+
+  .mjx-chtml {
+      margin: 1.5rem 0 !important;
+  }
+</style>
+
+<div class="container my-5">
+  <div class="card shadow-lg">
+    <div class="card-body">
+      <h2 class="card-title text-primary mb-1">{{ experiment.title }}</h2>
+      <p class="text-muted mb-4"><strong>Code:</strong> {{ experiment.code }}</p>
+
+      <!-- Objective -->
+      <details id="guide-collapsible-sections" class="mb-3">
+        <summary><i class="fas fa-bullseye me-2 text-success"></i>Objective</summary>
+        <div class="mt-3 text-content">
+          {% if experiment.objective %}
+            {{ experiment.objective|safe }}
+          {% else %}
+            <p class="text-muted">No objective provided for this experiment.</p>
+          {% endif %}
+        </div>
+      </details>
+
+      <!-- Apparatus -->
+      <details class="mb-3">
+        <summary><i class="fas fa-tools me-2 text-secondary"></i> Apparatus</summary>
+        <div class="mt-3">
+          {% if experiment.apparatus_items.all %}
+            <div class="row g-4">
+              {% for item in experiment.apparatus_items.all %}
+                <div class="col-12 col-sm-6 col-lg-4 mb-3">
+                  <div class="glass p-3 rounded-4 text-center h-100 d-flex flex-column">
+                    {% if item.image %}
+                      <img src="{{ item.image.url }}" 
+                           alt="{{ item.name }}" 
+                           loading="lazy" decoding="async" fetchpriority="low"
+                           class="img-fluid rounded-4 shadow-sm fade-in"
+                           style="height:220px;width:100%;object-fit:contain;background:#f8f9fa;">
+                    {% else %}
+                      <div class="bg-light d-flex align-items-center justify-content-center rounded-4 shadow-sm mb-2" 
+                           style="height:220px;">
+                        <span class="text-muted">No Image</span>
+                      </div>
+                    {% endif %}
+                    <h6 class="mt-auto mb-0 fw-semibold">{{ item.name }}</h6>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted">No apparatus items available for this experiment.</p>
+          {% endif %}
+        </div>
+      </details>
+      
+      <!-- Theory -->
+      <details class="mb-3">
+        <summary><i class="fas fa-book me-2 text-info"></i> Theory</summary>
+        <div class="mt-3 text-content">{{ experiment.theory|safe }}</div>
+      
+        {% with experiment.theory_images.all as theory_images %}
+          {% if theory_images %}
+            <div class="row g-4 mt-3 border-top pt-3">
+              <div class="col-12">
+                <small class="text-muted d-block mb-2"><i class="fas fa-images me-1"></i> Attached Experiment Figures:</small>
+              </div>
+              {% for image in theory_images %}
+                <div class="col-12 col-sm-6 col-lg-4 mb-3">
+                  <div class="glass p-3 rounded-4 text-center h-100 d-flex flex-column">
+                    {% if image.image %}
+                      <img src="{{ image.image.url }}" 
+                           alt="{{ image.description }}" 
+                           loading="lazy" decoding="async" fetchpriority="low"
+                           class="img-fluid rounded-4 shadow-sm fade-in"
+                           style="height:180px;width:100%;object-fit:contain;background:#f8f9fa;">
+                    {% else %}
+                      <div class="bg-light d-flex align-items-center justify-content-center rounded-4 shadow-sm" 
+                           style="height:180px;">
+                        <span class="text-muted">No Image</span>
+                      </div>
+                    {% endif %}
+                    <figcaption class="mt-auto mb-0 fw-semibold text-dark small pt-2">{{ image.description }}</figcaption>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+      </details>
+      
+      <!-- Procedure -->
+      <details>
+        <summary><i class="fas fa-vial me-2 text-warning"></i>Procedure</summary>
+        <div class="mt-2">
+          {% if experiment.method_summary %}<p class="fst-italic">{{ experiment.method_summary }}</p>{% endif %}
+          {% if experiment.experimentstep_set.exists %}
+          <ol class="list-group list-group-numbered">
+            {% for step in experiment.experimentstep_set.all %}
+            <li class="list-group-item mb-4">
+              <h6 class="fw-bold text-primary">Step {{ step.step_number }}</h6>
+              <div class="text-content mb-3">{{ step.instruction|safe }}</div>
+              
+              {% if step.image %}
+                <img src="{{ step.image.url }}" 
+                    alt="Step {{ step.step_number }} Image" 
+                    loading="lazy" decoding="async"
+                    class="img-fluid rounded mb-3 d-block mx-auto shadow-sm" 
+                    style="max-height: 350px; object-fit: contain;">
+              {% endif %}
+
+              {% if step.video %}
+              <video class="w-100 rounded border mb-3 shadow-sm" style="max-width: 640px; display: block; margin: 0 auto;" controls preload="metadata">
+                <source src="{{ step.video.url }}" type="video/mp4">
+              </video>
+              {% endif %}
+
+              {% if step.video_url %}
+                {% with step.video_url as link %}
+                  {% if "youtube.com" in link or "youtu.be" in link or "drive.google.com" in link %}
+                    <div class="ratio ratio-16x9 my-3 shadow-sm rounded overflow-hidden" style="max-width: 640px; margin: 0 auto; border: 1px solid rgba(0,0,0,0.08);">
+                      
+                      {% if "drive.google.com" in link %}
+                        <iframe src="{{ link|cut:'/view'|cut:'?usp=sharing'|cut:'/edit' }}/preview" 
+                                allow="autoplay" 
+                                allowfullscreen 
+                                class="w-100 h-100 border-0">
+                        </iframe>
+                      {% else %}
+                        <iframe id="yt-frame-{{ step.id }}" data-raw-url="{{ link }}" allowfullscreen class="w-100 h-100 border-0"></iframe>
+                      {% endif %}
+
+                    </div>
+                  {% elif "phet.colorado.edu" in link or "geogebra.org" in link or "desmos.com" in link %}
+                    <div class="text-center my-3">
+                      <a href="{{ link }}" 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         class="btn btn-outline-success btn-sm px-3 py-2 shadow-sm"
+                         onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
+                        <i class="fas fa-vr-cardboard me-2"></i> Launch Interactive Simulation
+                      </a>
+                    </div>
+                  {% else %}
+                    <div class="text-center my-3">
+                      <a href="{{ link }}" 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         class="btn btn-outline-secondary btn-sm px-3 py-2"
+                         onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
+                        <i class="fas fa-external-link-alt me-2"></i> Visit Resource Reference
+                      </a>
+                    </div>
+                  {% endif %}
+                {% endwith %}
+              {% endif %}
+
+            </li>
+            {% endfor %}
+          </ol>
+          {% else %}
+          <p class="text-muted">Procedure steps have not been added yet.</p>
+          {% endif %}
+        </div>
+      </details>
+
+      <!-- External Video -->
+      {% if experiment.video_url %}
+      <div class="mb-4">
+        <h5 class="text-info">Data Acquisition Manual</h5>
+        <a href="{{ experiment.video_url }}" target="_blank" class="btn btn-outline-secondary"><i class="fas fa-book me-2"></i>View Manual</a>
+      </div>
+      {% endif %}
+
+      {% if experiment.recording_guide_tables %}
+      <div class="mb-4 text-content" id="guide-recording-tables"> 
+        <h5 class="text-info">
+          <i class="fas fa-table me-2"></i>Data Recording Guide
+        </h5>
+        <p class="text-muted small mb-3">
+          Use the structural reference guidelines and tables displayed below to help format your active data logging workspace inside the Draft Pad.
+        </p>
+        <div class="card border shadow-sm p-4 bg-white">
+          {{ experiment.recording_guide_tables|safe }}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Questions -->
+      {% if experiment.requires_questions and experiment.questions.all %}
+      <div class="mb-4">
+        <h5 class="text-info">Experimental Questions</h5>
+        <input type="text" id="questionSearch" class="form-control mb-3" placeholder="Search questions...">
+        <ul class="list-group" id="questionList">
+          {% for question in experiment.questions.all %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="text-content">{{ question.question_text|safe }}</div>
+            <span class="badge bg-primary">{{ question.marks }} marks</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Submit Report Wrapper -->
+      {% if experiment.requires_report %}
+      <div class="mt-5 p-4 bg-light rounded border" id="guide-submit-section">
+        <h5 class="mb-2 text-success">Submit Report</h5>
+        <p class="text-muted">Write and submit your report based on the experiment above.</p>
+        <a href="{% url 'lab:submit_report' experiment.id %}" class="btn btn-success"><i class="fas fa-edit me-2"></i>Write & Submit Report</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ========== FLOATING / RESIZABLE / DRAGGABLE DRAFT PAD ========== -->
+<button class="floating-draft-btn btn btn-warning" id="draftToggleBtn" aria-label="Toggle Draft Pad" title="Draft Pad (Ctrl + D)">
+  <i class="fas fa-pen-alt me-2"></i> Draft Pad
+</button>
+
+<div id="floatingDraftPad" class="card shadow border">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <strong>Draft Pad</strong>
+      <span class="resize-handle" title="Resize">
+        <i class="fas fa-up-right-and-down-left-from-center"></i>
+      </span>
+    </div>
+    <button class="btn-close btn-sm" id="draftCloseBtn" aria-label="Close Draft Pad"></button>
+  </div>
+  
+  <div class="card-body">
+    <form id="draftForm" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <!-- Observations -->
+      <div class="mb-3">
+        <label for="id_observation" class="form-label fw-bold"><i class="fas fa-eye me-1"></i> Your Observations</label>
+        <textarea id="id_observation" name="observation" class="form-control" rows="4" placeholder="E.g., I noticed the solution changed color after heating... Be detailed!">{{ draft.observation|default:'' }}</textarea>
+        <div id="observationStatus" style="font-size: 0.8em; color: #6c757d; margin-top: -8px; margin-bottom: 8px; display: none;"><i class="fas fa-pen me-1"></i> Typing...</div>
+      </div>
+
+      <!-- Hidden Data Field -->
+      <input type="hidden" id="id_data" name="data" value="{{ draft_form.data.value|default:'' }}">
+
+      <!-- Tables -->
+      <div class="mb-3">
+        <label class="form-label fw-bold"><i class="fas fa-table me-1"></i> Experiment Tables</label>
+        <div id="tablesWrapper"></div>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addTableBtn">+ Add Table</button>
+      </div>
+
+      <!-- Image Upload -->
+      <div class="mb-3">
+        <label class="form-label fw-bold"><i class="fas fa-image me-1"></i> Attach Image</label>
+        <input type="file" id="id_image" name="image" accept="image/*" class="d-none" onchange="handleImageUpload(event)">
+        <div id="imageContainer" class="border rounded p-3 bg-light cursor-pointer text-center text-muted" onclick="document.getElementById('id_image').click()" style="height: 180px; display: flex; align-items: center; justify-content: center;">
+          <div><i class="fas fa-image" style="font-size: 2rem; opacity: 0.5;"></i><p class="mb-0 mt-2">Click to upload image</p></div>
+        </div>
+        <div id="imagePreview" class="mt-2 d-none">
+          <img id="previewImg" class="img-thumbnail" style="max-height: 150px; width: auto;">
+          <button type="button" class="btn btn-sm btn-danger mt-1" onclick="clearImage()">Remove</button>
+        </div>
+      </div>
+    </form>
+    <small class="text-muted">Auto-saved after pause.</small>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- CDN styles / scripts -->
+<link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jspreadsheet.css">
+<link rel="stylesheet" href="https://jsuites.net/v5/jsuites.css">
+<script src="https://bossanova.uk/jspreadsheet/v4/jspreadsheet.js"></script>
+<script src="https://jsuites.net/v5/jsuites.js"></script>
+
+<script>
+/* ---------- DRAFT PAD LOGIC ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+
+    document.querySelectorAll('iframe[id^="yt-frame-"]').forEach(iframe => {
+      let rawUrl = iframe.getAttribute('data-raw-url');
+      if (!rawUrl) return;
+    
+      const idRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/;
+      const idMatch = rawUrl.match(idRegExp);
+      const videoId = (idMatch && idMatch[2].length === 11) ? idMatch[2] : null;
+      
+      const timeMatch = rawUrl.match(/[?&](?:t|start)=(\d+)/);
+      const startTime = timeMatch ? timeMatch[1] : 0;
+  
+      const endMatch = rawUrl.match(/[?&]end=(\d+)/);
+      const endTime = endMatch ? endMatch[1] : null;
+      
+      iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+      iframe.setAttribute('allowfullscreen', 'true');
+      iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  
+      if (videoId) {
+        const currentOrigin = window.location.origin;
+        let embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1&origin=${encodeURIComponent(currentOrigin)}&version=3`;
+        
+        if (startTime > 0) embedUrl += `&start=${startTime}`;
+        if (endTime) embedUrl += `&end=${endTime}`;
+        
+        iframe.src = embedUrl;
+      } else if (rawUrl.includes('youtube.com/embed/')) {
+        const currentOrigin = window.location.origin;
+        const separator = rawUrl.includes('?') ? '&' : '?';
+        iframe.src = rawUrl.includes('origin=') ? rawUrl : `${rawUrl}${separator}origin=${encodeURIComponent(currentOrigin)}&enablejsapi=1&version=3`;
+      }
+    });
+
+
+    /* ---------- FIX JEXCEL CONTEXT MENU DRIFT ---------- */
+    document.addEventListener('contextmenu', (e) => {
+        setTimeout(() => {
+            const menu = document.querySelector('.jexcel_contextmenu');
+            if (menu && menu.parentElement !== document.body) {
+                document.body.appendChild(menu); // Teleport to body root to bypass Draft Pad CSS transform bounds
+                menu.style.position = 'fixed';
+                menu.style.left = e.clientX + 'px';
+                menu.style.top = e.clientY + 'px';
+                menu.style.zIndex = '10000';
+            }
+        }, 10);
+    }, true);
+
+  const $$ = id => document.getElementById(id);
+  const pad           = $$('floatingDraftPad');
+  const toggleBtn     = $$('draftToggleBtn');
+  const closeBtn      = $$('draftCloseBtn');
+  const observation   = $$('id_observation');
+  const dataField     = $$('id_data');
+  const imageInput    = $$('id_image');
+  const tablesWrapper = $$('tablesWrapper');
+  const addTableBtn   = $$('addTableBtn');
+
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+  /* ---------- SAVE STATUS ---------- */
+  const statusEl = document.createElement('div');
+  statusEl.id = 'save-status';
+  Object.assign(statusEl.style, {
+    position: 'fixed', bottom: '20px', right: '360px', backgroundColor: '#2c3e50',
+    color: 'white', padding: '8px 12px', borderRadius: '6px', fontSize: '14px',
+    zIndex: '1050', opacity: '0', transition: 'opacity 0.3s', pointerEvents: 'none',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+  });
+  document.body.appendChild(statusEl);
+  function showStatus(icon, text, duration = 3000) {
+    statusEl.innerHTML = `<strong>${icon} ${text}</strong>`;
+    statusEl.style.opacity = 1;
+    setTimeout(() => { statusEl.style.opacity = 0; }, duration);
+  }
+
+  /* ---------- TOGGLE ---------- */
+  function togglePad() { pad.classList.toggle('show'); }
+  if (toggleBtn) toggleBtn.addEventListener('click', togglePad);
+  if (closeBtn)  closeBtn.addEventListener('click', () => pad.classList.remove('show'));
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'd') { e.preventDefault(); togglePad(); }
+  });
+
+  /* ---------- AUTO-SAVE ---------- */
+  let saveTimer = null, lastImageKey = null;
+  async function autoSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      updateAllData();
+      const fd = new FormData();
+      fd.append('observation', observation ? observation.value : '');
+      fd.append('data', dataField ? dataField.value : '[]');
+      if (imageInput.files.length) {
+        const file = imageInput.files[0];
+        const key = `${file.name}-${file.size}`;
+        if (key !== lastImageKey) { fd.append('image', file); lastImageKey = key; }
+      }
+      try {
+        const r = await fetch(`/experiment/{{ experiment.id }}/auto_save_draft/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrf },
+          body: fd
+        });
+        const j = await r.json();
+        showStatus(j.status === 'saved' ? '✅' : '⚠️', j.status === 'saved' ? 'Saved' : 'Save failed');
+      } catch (err) {
+        console.error('Auto-save error', err);
+        showStatus('❌', 'Error saving');
+      }
+    }, 800);
+  }
+
+
+  
+  /* ---------- TABLES ---------- */
+  let tables = [], MAX_TABLES = 10;
+  function updateAllData() {
+    const payload = tables.map(({ titleId, instance }) => {
+      const titleEl = document.getElementById(titleId);
+      const sheet = instance.jspreadsheet || instance; 
+      
+      let merges = {};
+      try {
+        if (sheet.getMerge) {
+          merges = sheet.getMerge();
+        } else if (sheet.options && sheet.options.merge) {
+          merges = sheet.options.merge;
+        }
+      } catch (e) {
+        console.warn("Could not get merges:", e);
+      }
+      
+      return {
+        title: titleEl ? titleEl.value : 'Untitled',
+        columns: sheet.options.columns.map(c => c.title || 'Column'),
+        data: sheet.getData(),
+        merges: merges
+      };
+    });
+    if (dataField) dataField.value = JSON.stringify(payload);
+    return payload;
+  }
+  
+  function addTable(preloaded = null) {
+    if (tables.length >= MAX_TABLES) return alert(`Max ${MAX_TABLES} tables allowed.`);
+    const idx = tables.length, tableId = `table_${idx}`, titleId = `table_title_${idx}`;
+    const container = document.createElement('div');
+    container.className = 'border rounded p-2 mb-3 bg-light position-relative';
+
+    const title = document.createElement('input');
+    title.type = 'text'; title.className = 'form-control mb-2'; title.id = titleId;
+    title.value = (preloaded && preloaded.title) ? preloaded.title : `Table ${idx + 1}`;
+    title.oninput = () => { updateAllData(); autoSave(); };
+
+    const toolbar = document.createElement('div'); toolbar.className = 'btn-group btn-group-sm mb-2';
+    const mkBtn = (icon, cls, tip, text = '') => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = `btn ${cls}`; b.title = tip;
+        b.innerHTML = `<i class="${icon}"></i> ${text}`; return b;
+    };
+    const btnAddRow = mkBtn('fas fa-plus', 'btn-outline-success', 'Add Row', 'Row');
+    const btnDelRow = mkBtn('fas fa-trash', 'btn-outline-danger', 'Delete Row', 'Row');
+    const btnAddCol = mkBtn('fas fa-plus', 'btn-outline-success', 'Add Column', 'Col');
+    const btnDelCol = mkBtn('fas fa-trash', 'btn-outline-danger', 'Delete Column', 'Col');
+    const btnMerge   = mkBtn('fas fa-object-group', 'btn-outline-primary', 'Merge');
+    const btnUnmerge = mkBtn('fas fa-object-ungroup', 'btn-outline-secondary', 'Unmerge');
+    
+    toolbar.append(btnAddRow, btnDelRow, btnAddCol, btnDelCol, btnMerge, btnUnmerge);
+
+    const tableDiv = document.createElement('div'); tableDiv.id = tableId;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-danger position-absolute top-0 end-0 m-2'; delBtn.innerHTML = '&times;';
+
+    container.append(title, toolbar, tableDiv, delBtn);
+    tablesWrapper.appendChild(container);
+
+    let lastSelection = []; 
+
+    let rawData = (preloaded && Array.isArray(preloaded.data)) ? preloaded.data : [['']];
+    const data = rawData.map(row => {
+        if (!Array.isArray(row)) return [''];
+        return row.length > 0 ? row : [''];
+    });
+    
+    let rawCols = (preloaded && Array.isArray(preloaded.columns)) ? preloaded.columns : [];
+    const dataWidth = Math.max(...data.map(r => r.length), 1);
+    
+    while (rawCols.length < dataWidth) {
+        rawCols.push(`Column ${rawCols.length + 1}`);
+    }
+    
+    const cols = rawCols.map((c, idx) => ({ 
+        type: 'text', 
+        title: c || `Column ${idx + 1}`,
+        width: 120 
+    }));
+
+    const savedMerges = (preloaded && preloaded.merges) ? preloaded.merges : {};
+
+    const instance = jspreadsheet(tableDiv, {
+      data: data,
+      columns: cols,
+      minDimensions: [1, 1],
+      selectionCopy: true,
+      allowManualSelection: true,
+      allowRenameColumn: true,
+
+      contextMenu: function(obj, x, y, e) {
+          const items = [];
+
+          if (e && e.target) {
+              items.push({
+                  title: 'Rename this column',
+                  onclick: function() {
+                      const colIdx = x !== null ? parseInt(x) : 0;
+                      const currentTitle = obj.options.columns[colIdx].title || `Column ${colIdx + 1}`;
+                      const newTitle = prompt('Rename column:', currentTitle);
+                      if (newTitle !== null && newTitle.trim() !== '') {
+                          obj.setHeader(colIdx, newTitle.trim());
+                          updateAllData();
+                          autoSave();
+                      }
+                  }
+              });
+
+              items.push({
+                  title: 'Insert column before',
+                  onclick: function() {
+                      const colIdx = x !== null ? parseInt(x) : 0;
+                      obj.insertColumn(1, colIdx, true);
+                      updateAllData();
+                      autoSave();
+                  }
+              });
+
+              items.push({
+                  title: 'Insert column after',
+                  onclick: function() {
+                      const colIdx = x !== null ? parseInt(x) : 0;
+                      obj.insertColumn(1, colIdx, false);
+                      updateAllData();
+                      autoSave();
+                  }
+              });
+
+              items.push({
+                  title: 'Delete selected column',
+                  onclick: function() {
+                      obj.deleteColumn();
+                      updateAllData();
+                      autoSave();
+                  }
+              });
+          }
+
+          setTimeout(() => {
+              const menu = document.querySelector('.jexcel_contextmenu');
+              if (menu && e) {
+                  menu.style.left = e.clientX + 'px';
+                  menu.style.top = e.clientY + 'px';
+              }
+          }, 10);
+
+          return items;
+      },
+
+      onselection: (el, x1, y1, x2, y2) => {
+          lastSelection = [x1, y1, x2, y2];
+      },
+      onchange: () => { updateAllData(); autoSave(); },
+      oninsertrow: () => { updateAllData(); autoSave(); },
+      ondeleterow: () => { updateAllData(); autoSave(); },
+      oninsertcolumn: () => { updateAllData(); autoSave(); },
+      ondeletecolumn: () => { updateAllData(); autoSave(); },
+      onmerge: () => { updateAllData(); autoSave(); },
+      onunmerge: () => { updateAllData(); autoSave(); },
+      onresize: () => { updateAllData(); autoSave(); },
+    });
+
+    const sheet = instance;
+
+    if (savedMerges && Object.keys(savedMerges).length > 0) {
+        const applyMerges = (retries = 3) => {
+            try {
+                if (typeof sheet.setMerge !== 'function') return;
+                
+                Object.entries(savedMerges).forEach(([cell, dimensions]) => {
+                    if (Array.isArray(dimensions) && dimensions.length >= 2) {
+                        const [colspan, rowspan] = dimensions;
+                        if (/^[A-Z]+\d+$/.test(cell)) {
+                            try {
+                                sheet.setMerge(cell, parseInt(colspan), parseInt(rowspan));
+                            } catch (mergeErr) {}
+                        }
+                    }
+                });
+                
+                if (sheet.refresh) sheet.refresh();
+                updateAllData();
+                
+            } catch (e) {
+                if (retries > 0) setTimeout(() => applyMerges(retries - 1), 200);
+            }
+        };
+        setTimeout(applyMerges, 150);
+    }
+
+    btnMerge.onclick = () => {
+        const sel = lastSelection;
+        if (!sel || sel.length < 4) return alert("Select at least 2 cells to merge");
+
+        const x1 = parseInt(sel[0]), y1 = parseInt(sel[1]), x2 = parseInt(sel[2]), y2 = parseInt(sel[3]);
+        if (x1 === x2 && y1 === y2) return alert("Select at least 2 cells to merge");
+
+        sheet.setMerge(jspreadsheet.helpers.getColumnName(x1) + (y1 + 1), (x2 - x1 + 1), (y2 - y1 + 1));
+        updateAllData();
+        autoSave();
+    };
+
+    btnUnmerge.onclick = () => {
+        const sel = lastSelection;
+        if (!sel || sel.length < 4) return;
+        const x1 = parseInt(sel[0]), y1 = parseInt(sel[1]), x2 = parseInt(sel[2]), y2 = parseInt(sel[3]);
+        for (let row = y1; row <= y2; row++) {
+            for (let col = x1; col <= x2; col++) {
+                sheet.removeMerge(jspreadsheet.helpers.getColumnName(col) + (row + 1));
+            }
+        }
+        updateAllData(); 
+        autoSave();
+    };
+
+    btnAddRow.onclick = () => sheet.insertRow();
+    btnDelRow.onclick = () => sheet.options.data.length > 1 && sheet.deleteRow();
+    btnAddCol.onclick = () => {
+      const name = prompt('Column title:', 'New Column');
+      if (name && name.trim() !== '') {
+          // Insert 1 column at the end
+          sheet.insertColumn();
+          const newColIndex = sheet.options.columns.length - 1;
+          // Explicitly set the custom header
+          sheet.setHeader(newColIndex, name.trim());
+          updateAllData();
+          autoSave();
+      }
+    };
+    btnDelCol.onclick = () => sheet.options.columns.length > 1 && sheet.deleteColumn();
+
+    delBtn.onclick = () => {
+        if (sheet) sheet.destroy();
+        container.remove();
+        tables = tables.filter(x => x.id !== tableId);
+        updateAllData(); autoSave();
+    };
+
+    tables.push({ id: tableId, titleId, instance });
+    updateAllData();
+  }
+
+  if (addTableBtn) addTableBtn.addEventListener('click', () => addTable());
+
+  /* ---------- PRELOAD ---------- */
+  try {
+    const observation = document.getElementById('id_observation');
+    const draftObs = "{{ draft.observation|default:''|escapejs }}";
+    if (observation && draftObs) observation.value = draftObs;
+
+    let rawData = {{ draft_data|safe }}; 
+    let initialData = [];
+
+    if (rawData && typeof rawData === 'object' && !Array.isArray(rawData)) {
+        initialData = [rawData];
+    } else if (Array.isArray(rawData)) {
+        initialData = rawData;
+    }
+
+    if (initialData.length > 0) {
+        document.getElementById('tablesWrapper').innerHTML = '';
+        initialData.forEach((tableData) => addTable(tableData));
+    } else {
+        addTable();
+    }
+
+    {% if draft.image %}
+    const previewImg = document.getElementById('previewImg');
+    if (previewImg) {
+        previewImg.src = "{{ draft.image.url }}";
+        document.getElementById('imagePreview').classList.remove('d-none');
+        document.getElementById('imageContainer').style.display = 'none';
+    }
+    {% endif %}
+
+    updateAllData();
+  } catch (err) {
+    console.error('Draft preload failed:', err);
+    showStatus('⚠️', 'Could not load draft');
+    if (typeof addTable === 'function') addTable();
+  }
+
+  if (observation) observation.addEventListener('input', autoSave);
+  if (imageInput) imageInput.addEventListener('change', autoSave);
+  updateAllData();
+
+  /* ---------- DRAG & RESIZE ---------- */
+  initResize();
+  initDrag();
+
+  /* ---------- OBSERVATION TYPING INDICATOR ---------- */
+  observation?.addEventListener('input', () => {
+    const status = document.getElementById('observationStatus');
+    if (status) {
+      status.style.display = 'block';
+      setTimeout(() => status.style.display = 'none', 2000);
+    }
+    autoSave();
+  });
+
+  /* ---------- IMAGE HANDLING ---------- */
+  window.handleImageUpload = function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.getElementById('previewImg');
+      img.src = ev.target.result;
+      img.style.display = 'block';
+      document.getElementById('imagePreview').classList.remove('d-none');
+      document.getElementById('imageContainer').style.display = 'none';
+      autoSave();
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  window.clearImage = function () {
+    const input = document.getElementById('id_image');
+    const preview = document.getElementById('previewImg');
+    const container = document.getElementById('imageContainer');
+    const previewArea = document.getElementById('imagePreview');
+    input.value = ''; preview.src = ''; preview.style.display = 'none';
+    container.style.display = 'flex'; previewArea.classList.add('d-none');
+    autoSave();
+  };
+
+  /* ---------- DRAG HEADER TO MOVE ---------- */
+  function initDrag() {
+    const pad = document.getElementById('floatingDraftPad');
+    const header = pad.querySelector('.card-header');
+    if (!header) return;
+    let offsetX, offsetY;
+    header.addEventListener('mousedown', e => {
+      offsetX = e.clientX - pad.offsetLeft;
+      offsetY = e.clientY - pad.offsetTop;
+      function onMouseMove(ev) {
+        pad.style.right = 'auto';
+        pad.style.left = (ev.clientX - offsetX) + 'px';
+        pad.style.bottom = 'auto';
+        pad.style.top = (ev.clientY - offsetY) + 'px';
+      }
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      e.preventDefault();
+    });
+  }
+
+  function initResize() {
+    const pad = document.getElementById("floatingDraftPad");
+    const handle = document.querySelector(".resize-handle");
+    let startX, startY, startW, startH;
+  
+    function start(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      startX = touch.clientX; startY = touch.clientY;
+      startW = pad.offsetWidth; startH = pad.offsetHeight;
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", stop);
+      document.addEventListener("touchmove", move);
+      document.addEventListener("touchend", stop);
+    }
+  
+    function move(e) {
+      const touch = e.touches ? e.touches[0] : e;
+      let newW = startW + (touch.clientX - startX);
+      let newH = startH + (touch.clientY - startY);
+      pad.style.width = `${Math.max(newW, 260)}px`;
+      pad.style.height = `${Math.max(newH, 200)}px`;
+    }
+  
+    function stop() {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", stop);
+      document.removeEventListener("touchmove", move);
+      document.removeEventListener("touchend", stop);
+    }
+  
+    handle.addEventListener("mousedown", start);
+    handle.addEventListener("touchstart", start);
+  }
+});
+</script>
+
+<!-- MathJax & Preprocessing Script -->
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    },
+    startup: {
+      pageReady: () => {
+        preprocessWordFormulae();
+        return MathJax.startup.defaultPageReady();
+      }
+    }
+  };
+
+  function preprocessWordFormulae() {
+    const targetContainers = document.querySelectorAll('.text-content');
+    targetContainers.forEach(container => {
+      let rawHTML = container.innerHTML;
+      rawHTML = rawHTML.replace(/(\d*)\s*J\s*(?:〖|\[)\s*kg\s*(?:〗|\])\s*\^\(\s*(-?\d+)\s*\)\s*k\s*\^\(\s*(-?\d+)\s*\)/gi, (match, prefixValue, kgExp, kExp) => {
+        const valueToken = prefixValue ? prefixValue + '\\,\\text{J}' : '\\text{J}';
+        return `$${valueToken}\\cdot\\text{kg}^{${kgExp}}\\cdot\\text{K}^{${kExp}}$`;
+      });
+      rawHTML = rawHTML.replace(/(\d*)\s*J\s*(?:〖|\[)\s*kg\s*(?:〗|\])\s*\^\(\s*(-?\d+)\s*\)/gi, (match, prefixValue, kgExp) => {
+        const valueToken = prefixValue ? prefixValue + '\\,\\text{J}' : '\\text{J}';
+        return `$${valueToken}\\cdot\\text{kg}^{${kgExp}}$`;
+      });
+      rawHTML = rawHTML.replace(/(\d+)\s*°\s*C/g, (match, temperatureValue) => {
+        return `$${temperatureValue}^\\circ\\text{C}$`;
+      });
+      container.innerHTML = rawHTML;
+    });
+  }
+</script>
+
+<!-- Deadline Enforcement Script -->
+<script>
+(() => {
+  const lockTime = new Date("{{ experiment.lock_time|date:'c' }}");
+  const now = new Date();
+  const isPastDeadline = lockTime && now > lockTime;
+
+  if (!isPastDeadline) return;
+
+  const obs = document.getElementById('id_observation');
+  if (obs) obs.disabled = true;
+  
+  const addBtn = document.getElementById('addTableBtn');
+  if (addBtn) addBtn.disabled = true;
+  
+  document.querySelectorAll('#tablesWrapper button').forEach(btn => {
+    btn.disabled = true;
+  });
+  
+  if (typeof autoSave === 'function') {
+    autoSave = () => {};
+  }
+
+  const button = document.querySelector('a[href*="submit_report"]');
+  if (!button) return;
+
+  button.addEventListener('click', e => {
+    e.preventDefault();
+    button.classList.add('shake');
+    setTimeout(() => button.classList.remove('shake'), 500);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'deadline-overlay';
+    overlay.innerHTML = `
+      <div class="deadline-card">
+        <div class="deadline-icon"><i class="fa-solid fa-clock"></i></div>
+        <div class="deadline-title">Time’s Up!</div>
+        <div class="deadline-sub">This experiment report is no longer accepting submissions.</div>
+        <svg class="countdown-ring" viewBox="0 0 60 60">
+          <circle class="bg" cx="30" cy="30" r="25"/>
+          <circle class="progress" cx="30" cy="30" r="25" id="ringProgress"/>
+        </svg>
+        <div class="text-muted small">Redirecting you to the reports page…</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => overlay.querySelector('.deadline-card').classList.add('show'));
+    setTimeout(() => overlay.querySelector('#ringProgress').style.strokeDashoffset = '0', 10);
+
+    setTimeout(() => {
+      overlay.querySelector('.deadline-card').classList.remove('show');
+      setTimeout(() => {
+        overlay.remove();
+        window.location.href = "{% url 'lab:report_list' %}";
+      }, 350);
+    }, 4000);
+  });
+})();
+</script>
+
+<!-- Driver.js Interactive Guide -->
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+      if (localStorage.getItem("has_seen_workspace_guide")) return;
+
+      const driver = window.driver.js.driver;
+      const driverObj = driver({
+          showProgress: true,
+          allowClose: true,
+          onHighlightStarted: (element, step) => {
+              if (step.element === '#floatingDraftPad' || step.element === '#draftToggleBtn') {
+                  const pad = document.getElementById('floatingDraftPad');
+                  if (pad && !pad.classList.contains('show')) pad.classList.add('show');
+              }
+          },
+          steps: [
+              {
+                  element: '#guide-collapsible-sections',
+                  popover: { title: 'Step 1: Explore Procedures', description: 'Click on these collapsible tabs to expand and read the experiment Objective, Apparatus, Theory, and Procedure steps before you begin.', side: 'bottom', align: 'start' }
+              },
+              {
+                  element: '#guide-recording-tables',
+                  popover: { title: 'Step 2: Reference Guideline Tables', description: 'This area houses the data recording templates. Examine these to understand exactly what columns and units your draft pad tables should contain.', side: 'top', align: 'center' }
+              },
+              {
+                  element: '#draftToggleBtn',
+                  popover: { title: 'Step 3: Open the Draft Pad', description: 'Click this button or press Ctrl + D from anywhere to toggle your floating workspace. Write your raw observations, build tables, and attach images here.', side: 'left', align: 'center' }
+              },
+              {
+                  element: '#floatingDraftPad',
+                  popover: { title: 'Step 4: Real-time Cloud Sync', description: 'Your observations and measurements auto-save to the cloud dynamically after pauses. Drag the header to move the pad, or resize it from the top-left handle.', side: 'left', align: 'start' }
+              },
+              {
+                  element: '#guide-submit-section',
+                  popover: { title: 'Step 5: Write and Submit', description: 'Once you are finished logging data, click here to compile your final structured report. This sends it directly to our evaluators for evaluation.', side: 'top', align: 'center' }
+              }
+          ]
+      });
+
+      driverObj.drive();
+      localStorage.setItem("has_seen_workspace_guide", "true");
+  });
+</script>
+{% endblock %}

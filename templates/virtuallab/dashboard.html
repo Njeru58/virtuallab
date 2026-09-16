@@ -1,0 +1,126 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Virtual Physics Lab | Dashboard{% endblock title %}
+
+{% block extra_css %}
+<style>
+  .avatar-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+  .avatar-glow {
+    box-shadow: 0 4px 14px rgba(3, 105, 161, 0.25);
+  }
+  .action-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: none;
+    border-radius: 1rem;
+  }
+  .action-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08) !important;
+  }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<div class="container my-4">
+  <div class="jumbotron shadow-sm p-4 rounded-4 bg-white">
+
+    <!-- Student Profile Header -->
+    <div class="text-center mb-5">
+      <div class="avatar-wrapper">
+        {% if user.avatar %}
+          <img src="{{ user.avatar.url }}" 
+               class="rounded-circle border border-3 border-info shadow avatar-glow" 
+               width="110" height="110" 
+               alt="Profile Picture">
+        {% else %}
+          <img src="https://res.cloudinary.com/dvhsj2yka/image/upload/v1753105720/default-avatar_sodelz.jpg" 
+               class="rounded-circle border border-3 border-secondary shadow avatar-glow" 
+               width="110" height="110" 
+               alt="Default Avatar">
+        {% endif %}
+      </div>
+      <h2 class="mt-3 text-dark fw-bold">
+        Welcome, <span class="text-info">{{ user.first_name|default:user.username }}</span>
+      </h2>
+      <p class="text-muted small mb-0">{{ user.email }}</p>
+      {% if user.registration_number %}
+        <span class="badge badge-light border text-muted mt-2 font-weight-normal px-2 py-1">
+          {{ user.registration_number }}
+        </span>
+      {% endif %}
+    </div>
+
+    <!-- Action Cards (Aligned with Virtual Lab Workflows) -->
+    <div class="row justify-content-center g-4 mb-5">
+      <div class="col-sm-6 col-md-4 mb-3">
+        <a href="{% url 'lab:experiment_list' %}" class="text-decoration-none" aria-label="Enter Lab Experiments">
+          <div class="card shadow-sm h-100 text-center action-card p-4 py-5 bg-light">
+            <div class="mb-3"><i class="fa-solid fa-flask-vial fa-3x text-info"></i></div>
+            <h5 class="fw-semibold text-dark">Experiments</h5>
+            <p class="text-muted small mb-0">Access assigned practical setups and simulate lab procedures.</p>
+          </div>
+        </a>
+      </div>
+
+      <div class="col-sm-6 col-md-4 mb-3">
+        <a href="{% url 'lab:report_list' %}" class="text-decoration-none" aria-label="View Lab Reports">
+          <div class="card shadow-sm h-100 text-center action-card p-4 py-5 bg-light">
+            <div class="mb-3"><i class="fa-solid fa-clipboard-check fa-3x text-success"></i></div>
+            <h5 class="fw-semibold text-dark">My Reports</h5>
+            <p class="text-muted small mb-0">Review submitted data sheets, automated marks, and feedback.</p>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Getting Started / Lab Guide -->
+    <div class="text-center mb-4">
+      <h4 class="text-info font-weight-bold mb-3">Laboratory Guide & Overview</h4>
+    </div>
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="card border-info mb-4 shadow-sm">
+          <div class="card-body">
+            <ul class="list-group list-group-flush text-left">
+              <li class="list-group-item">
+                <i class="fas fa-house-user text-primary mr-2"></i>
+                <strong>Dashboard:</strong> Your lab console showing shortcuts and operational instructions.
+              </li>
+              <li class="list-group-item">
+                <i class="fas fa-flask text-info mr-2"></i>
+                <strong>Experiments:</strong> Select available practicals filtered for your academic year group.
+              </li>
+              <li class="list-group-item">
+                <i class="fas fa-sliders text-secondary mr-2"></i>
+                <strong>Apparatus & Theory:</strong> Read procedural instructions, study underlying physics equations, and review measurement guides.
+              </li>
+              <li class="list-group-item">
+                <i class="fas fa-table text-warning mr-2"></i>
+                <strong>Data Collection:</strong> Record tabular readings directly with background draft auto-saving enabled.
+              </li>
+              <li class="list-group-item">
+                <i class="fas fa-chart-line text-danger mr-2"></i>
+                <strong>Graph Generation:</strong> Plot custom coordinates, calculate gradients, and attach curves to experimental reports.
+              </li>
+              <li class="list-group-item">
+                <i class="fas fa-robot text-success mr-2"></i>
+                <strong>Automated Evaluation:</strong> Instant structured grading of your hypotheses, observations, error margins, and report conclusions.
+              </li>
+              <li class="list-group-item">
+                <i class="fas fa-file-pdf text-muted mr-2"></i>
+                <strong>PDF Exports:</strong> Generate structured lab documentation downloads of completed and marked attempts.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock content %}

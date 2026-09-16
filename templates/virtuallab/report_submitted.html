@@ -1,0 +1,131 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% load custom_filters %}
+
+{% block title %}Report Submitted{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+
+    {# Hero Section #}
+    <div class="jumbotron text-center p-5 shadow-sm {% if is_preliminary_only %}bg-light{% endif %}">
+        {% if is_preliminary_only %}
+            <h1 class="display-5 fw-bold" style="color: green;">Preliminary Data Logged</h1>
+            <p class="lead text-muted">Experimental results for <strong>{{ experiment.title }}</strong> have been recorded.</p>
+            <div class="mt-4">
+                <a href="{% url 'lab:submit_report' experiment.id %}" class="btn" style="background-color: green; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+                    Proceed to Final Analysis <i class="fas fa-arrow-right ms-2"></i>
+                </a>
+            </div>
+        {% else %}
+            <h1 class="display-5 fw-bold" style="color: #003366;">Report Fully Submitted</h1>
+            <p class="lead text-muted">{{ experiment.title }}</p>
+            <p class="text-muted small">Submitted on {{ report.submitted_at|date:"F d, Y @ h:i A" }}</p>
+            <div class="mt-3 d-flex justify-content-center gap-2">
+                <a href="{% url 'lab:report_pdf' experiment.id %}" class="btn" style="background-color: #003366; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">
+                    <i class="fas fa-file-pdf me-1"></i> Download PDF
+                </a>
+                {# Print button added back for your script below #}
+                <button id="printBtn" class="btn toon-print" style="background-color: #6c757d; color: white; padding: 8px 16px; border-radius: 4px;">
+                    <i class="fas fa-print me-1"></i> Print Report
+                </button>
+            </div>
+        {% endif %}
+    </div>
+
+    {# Report Content #}
+    <div class="card lab-report-card shadow-sm">
+        <div class="card-body lab-report-card-body">
+            
+            {% for title, content in sections %}
+                <section class="report-section">
+                    <h2 class="section-title">{{ forloop.counter }}. {{ title }}</h2>
+                    
+                    {% if content|is_list %}
+                        <div class="data-analysis-box p-3 mb-4">
+                            {% for line in content %}
+                                {% if line %}
+                                    <div class="mathjax-content text-center my-2">
+                                        $$ {{ line|safe }} $$
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="section-content ps-3 mb-4">
+                            {{ content|linebreaks }}
+                        </div>
+                    {% endif %}
+                </section>
+            {% endfor %}
+
+            {# Tables #}
+            {% if experimental_tables %}
+            <section class="report-section">
+                <h2 class="section-title"><i class="fas fa-table me-2"></i> Experimental Data</h2>
+                {% for table in experimental_tables %}
+                    <div class="table-responsive mb-4">
+                        <table class="table table-bordered">
+                            <thead style="background-color: #f2f2f2; color: #0044cc;">
+                                <tr>
+                                    {% for col in table.0 %}
+                                        <th class="text-center">{{ col }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in table|slice:"1:" %}
+                                <tr>
+                                    {% for cell in row %}
+                                        <td class="text-center mathjax-content">{{ cell|safe }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endfor %}
+            </section>
+            {% endif %}
+
+            {# File Attachment #}
+            {% if not is_preliminary_only and report.report_file %}
+            <div class="alert alert-info d-flex align-items-center justify-content-between p-4 mt-4">
+                <div>
+                    <h5 class="mb-1"><strong>Final Document</strong></h5>
+                    <p class="mb-0 small">Your formal report is attached below.</p>
+                </div>
+                <a href="{{ report.report_file.url }}" target="_blank" class="btn" style="background-color: #003366; color: white; text-decoration: none;">
+                    Download File
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="text-center mt-5">
+                <a href="{% url 'lab:experiment_list' %}" style="color: #003366; text-decoration: none;">
+                    <i class="fas fa-arrow-left me-1"></i> Return to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Scripts must stay INSIDE the block content #}
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<script>
+    const printBtn = document.getElementById('printBtn');
+    if (printBtn) {
+        const printIcon = printBtn.querySelector('i');
+        printBtn.addEventListener('click', () => {
+            printIcon.style.animation = 'none';
+            void printIcon.offsetWidth;
+            printIcon.style.animation = 'toonPrintClick 0.8s ease-in-out';
+            
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        });
+    }
+</script>
+{% endblock %}

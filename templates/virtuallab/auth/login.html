@@ -1,0 +1,91 @@
+{% extends 'virtuallab/layout/base_lab.html' %}
+{% block title %}Virtual Physics Lab | {{ title|default:"Sign In" }}{% endblock title %}
+
+{% block content %}
+{% if not request.user.is_authenticated %}
+<!-- Unified Section with Full Background -->
+<section class="py-5" style="background-color: #f0f8ff;">
+  <div class="container">
+    <!-- Jumbotron Title -->
+    <div class="text-center mb-5">
+      <h1 class="display-5 text-primary">
+        <i class="fas fa-atom me-2"></i>Welcome to Virtual Physics Lab
+      </h1>
+      <p class="lead text-muted">
+        Sign in using your registration number to access experiments, recording guides, and automated report evaluations.
+      </p>
+    </div>
+
+    <!-- Sign In Card -->
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-5">
+        <div class="card shadow-lg p-4">
+          <h2 class="text-center mb-4 text-success">
+            <i class="fas fa-sign-in-alt me-2 text-success"></i>{{ title|default:"Sign In" }}
+          </h2>
+          <form method="POST" action="">
+            {% csrf_token %}
+            {% for field in form %}
+              <div class="form-group mb-3">
+                <label for="{{ field.id_for_label }}">
+                  {% if field.name == "registration_number" or field.name == "username" %}
+                    <i class="fas fa-id-card text-primary me-1"></i>
+                  {% elif field.name == "password" %}
+                    <i class="fas fa-lock text-danger me-1"></i>
+                  {% endif %}
+                  {{ field.label }}
+                </label>
+                {{ field }}
+                {% for error in field.errors %}
+                  <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                  {{ error }}
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-success w-100">
+              <i class="fas fa-arrow-right-to-bracket me-1"></i>{{ title|default:"Sign In" }}
+            </button>
+
+            <div class="text-end mt-2">
+              <a href="{% url 'lab:password_reset' %}" class="text-warning text-decoration-none">
+                <i class="fas fa-key me-1 text-warning"></i>Forgot Password?
+              </a>
+            </div>
+          </form>
+
+          <div class="text-center mt-4">
+            <p>Don't have an account?</p>
+            <a href="{% url 'lab:register' %}" class="btn btn-outline-primary">
+              <i class="fas fa-user-plus me-1"></i>Create account
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% else %}
+<!-- Jumbotron for logged-in users who land on the login page -->
+<section id="section-jumbotron" class="jumbotron jumbotron-fluid d-flex justify-content-center align-items-center">
+  <div class="container text-center">
+    <h1 class="display-4 text-info"><i class="fas fa-flask mr-2"></i>Virtual Physics Laboratory</h1>
+    <p class="lead">Select an experiment to begin data collection and report drafting.</p>
+    <a href="{% url 'lab:experiment_list' %}" class="btn btn-lg btn-info mt-2">
+      <i class="fas fa-flask me-1"></i> View Experiments
+    </a>
+    <a href="{% url 'lab:report_list' %}" class="btn btn-lg btn-secondary mt-2">
+      <i class="fa-solid fa-book-open me-1"></i> My Lab Reports
+    </a>
+  </div>
+</section>
+{% endif %}
+{% endblock content %}
